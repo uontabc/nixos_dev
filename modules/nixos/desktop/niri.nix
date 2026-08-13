@@ -36,6 +36,21 @@ let
     // Noctalia is started by systemd (programs.noctalia.systemd.enable),
     // so we don't need spawn-at-startup here.
 
+    // Confirm actual output names with `niri msg outputs` at runtime.
+    // NVIDIA dGPU driving DP -> names look like "DP-1".
+    // AMD iGPU driving DP  -> names look like "DisplayPort-1".
+    output "eDP-1" {
+        mode "2560x1600@240Hz"
+        scale 1.6
+        position x=0 y=0
+    }
+
+    output "DP-1" {
+        mode "2560x1440@210Hz"
+        position x=2560 y=0      // to the right of eDP-1
+        // scale left at 1.0; bump to 1.25 if 27" feels too small
+    }
+
     binds {
         Mod+R { reload-config; }
 
