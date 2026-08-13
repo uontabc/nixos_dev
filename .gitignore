@@ -1,0 +1,26 @@
+# Nix build artifacts
+result
+result-*
+
+# Direnv
+.direnv
+.envrc.local
+
+# Editor
+*.swp
+*.swo
+*.bak
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets (don't accidentally commit)
+secrets/
+*.key
+*.pem
+secrets.nix
+
+# Local history
+.history/
