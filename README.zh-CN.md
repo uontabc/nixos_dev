@@ -2,18 +2,22 @@
 
 **语言：** [English](README.md) · 中文（当前）
 
-完全基于 NixOS 模块（不使用 home-manager）的声明式桌面配置。合成器采用 [niri](https://github.com/niri-wm/niri)（滚动式平铺），桌面 shell 采用 [Noctalia v5](https://github.com/noctalia-dev/noctalia)，分盘用 [disko](https://github.com/nix-community/disko) 声明 btrfs 布局，根目录通过 [impermanence](https://github.com/nix-community/impermanence) 实现不可变快照回滚，日常维护命令使用 [nh](https://github.com/nix-community/nh)。
+完全基于 NixOS 模块（不使用 home-manager）的声明式桌面配置。合成器采用 [niri](https://github.com/niri-wm/niri)（滚动式平铺），桌面 shell 采用 [Noctalia v5](https://github.com/noctalia-dev/noctalia)，持久化由 [impermanence](https://github.com/nix-community/impermanence) 配合 btrfs 快照回滚实现，日常维护命令使用 [nh](https://github.com/nix-community/nh)。目标主机为 **Windows + NixOS 同盘共存**——磁盘准备走手动 `parted`；`fileSystems` 与回滚脚本通过稳定的 *partlabel*（`nixos-esp`、`nixos-btrfs`）引用分区。
 
 ## 特性概览
 
 - **滚动平铺合成器** niri，KDL 配置热重载
 - **桌面 shell** Noctalia v5 beta（bar / launcher / 通知 / 锁屏 / 控制中心，systemd 用户服务管理）
-- **声明式分盘** disko + btrfs，子卷 `root` / `persist` / `nix`
+- **同盘双系统** NixOS 通过独立 ESP + btrfs 分区与 Windows 共享单 NVMe；GRUB + os-prober 把 Windows Boot Manager 加入菜单
 - **不可变根** 每次开机将 root 子卷回滚至 `@root-blank` 基线快照；impermanence 持久化关键状态
-- **双系统** GRUB + os-prober 自动探测 Windows Boot Manager；ntfs3 支持挂载 NTFS 数据盘
-- **硬件驱动** AMD Ryzen 9 8940HX (Zen 4, Dragon Range) + NVIDIA RTX 5060 Laptop（Blackwell，open 内核模块 + stable 驱动）
+- **btrfs 子卷** `root` / `persist` / `nix`，compress=zstd, ssd, noatime
+- **硬件驱动** AMD Ryzen 9 8940HX（Zen 4, Dragon Range）+ NVIDIA RTX 5060 Laptop（Blackwell，open 内核模块 + stable 驱动）
 - **登录** tuigreet 直接启动 niri 会话，无自制脚本
 - **nh** 替代 `nixos-rebuild`，支持 fzf 选择 generation 及每周自动 GC
+
+## 为何分区准备是手动的（不是 disko）
+
+早期版本曾用 [disko](https://github.com/nix-community/disko) 做声明式分盘。disko 的 disk 模块调用 `parted mklabel gpt`，这会重写整盘 GPT 表——销毁包括 Windows 在内的所有既有分区。同盘双系统下不可接受，故完全弃用 disko。本配置直接声明 `fileSystems`，按 `by-partlabel` 引用分区，`parted` 由用户显式设 partlabel。回滚脚本与 GRUB 完全与分区表无关。
 
 ## 目录结构
 
@@ -22,8 +26,7 @@
 ├── flake.nix                       # Flake 入口：inputs + nixosConfiguration
 ├── hosts/uontabc/
 │   ├── default.nix                 # 主机入口
-│   ├── hardware.nix                # 留空——disko 接管 fileSystems
-│   └── disko.nix                   # 声明式分盘 + btrfs 回滚脚本
+│   └── hardware.nix                # fileSystems、回滚脚本、内核模块
 └── modules/nixos/                  # 全部为 NixOS 模块（无 home-manager）
     ├── default.nix                 # 汇总 import
     ├── core/                       # boot / networking / locale / users / packages / env / nh
@@ -41,78 +44,90 @@
 
 | 组件 | 假设 | 修改位置 |
 |---|---|---|
-| CPU | AMD Ryzen 9 8940HX (Zen 4, Dragon Range) | `modules/nixos/hardware/cpu-amd.nix` |
+| CPU | AMD Ryzen 9 8940HX（Zen 4, Dragon Range） | `modules/nixos/hardware/cpu-amd.nix` |
 | dGPU | NVIDIA RTX 5060 Laptop（Blackwell sm_120） | `modules/nixos/hardware/nvidia.nix` |
 | iGPU | 无（HX 系列 iGPU 禁用/极简，dGPU 直接驱动显示器） | 无需 PRIME 配置 |
 | 内屏 | eDP-1，2560×1600 @ 240 Hz | `modules/nixos/desktop/niri.nix` 的 `output` 节点 |
 | 外屏 | DP-1，2560×1440 @ 210 Hz | 同上 |
-| 磁盘 | 单 NVMe，整盘给 NixOS | `hosts/uontabc/disko.nix` 的 `device` |
+| 目标磁盘 | 单 NVMe，Windows + NixOS 共存 | `hosts/uontabc/hardware.nix`（`device` 路径） |
+| NixOS 分区大小 | 512 GB | 由你 `parted mkpart` 时确定 |
+
+## 目标分区布局
+
+安装前需用 `parted` 在 `/dev/nvme0n1` 上建好以下布局：
+
+| 分区 | Name (partlabel) | 类型 | 大小 | fsType | 挂载 |
+|---|---|---|---|---|---|
+| `nvme0n1p1` | *(Windows，已有)* | `EF00` (ESP) | ~100 MB | fat32 | Windows ESP（不动） |
+| `nvme0n1p2` | *(Windows，已有)* | 保留 | ~16 MB | ― | 不动 |
+| `nvme0n1p3` | *(Windows，已有)* | NTFS | 你缩完后 | ntfs | Windows C:（不动） |
+| `nvme0n1p4` | **`nixos-esp`** | `EF00` (ESP) | 1 GB | fat32 | `/boot` |
+| `nvme0n1p5` | **`nixos-btrfs`** | Linux fs | 511 GB | btrfs | `/`、`/nix`、`/persist`（按子卷） |
+
+partlabel 名 `nixos-esp` 与 `nixos-btrfs` **至关重要**——`hardware.nix` 按名字挂载，回滚脚本打开 `by-partlabel/nixos-btrfs`。忘设将无法启动。
 
 ## 前置条件
 
-1. 支持 UEFI 启动的机器，固件设置中关闭 Secure Boot
-2. 至少 8 GB 的 U 盘
-3. [NixOS 26.05 ISO](https://nixos.org/download/) — 推荐下载 GNOME 版或 Minimal 版（任何版本都行，本配置会替换桌面）。建议校验 ISO 哈希：
+1. 支持 UEFI 启动的机器，固件中 Secure Boot 已关闭。
+2. 至少 8 GB 的 U 盘。
+3. [NixOS 26.05 ISO](https://nixos.org/download/)——推荐 Minimal 版（手动从 TTY 分区，图形 ISO 浪费内存）。校验哈希：
 
    ```bash
    sha256sum nixos-*.iso
    # 与 nixos.org/download 公布的哈希对照
    ```
 
-4. **目标磁盘数据已完整备份**——disko 的 `destroy` 模式会重写分区表，擦除整盘所有内容
-5. 双系统安装：Windows 须位于**独立物理磁盘**（disko 无法保留同盘 Windows）
+4. **磁盘数据备份**。虽然本指南保守对待 Windows，但 `parted` 误操作仍能毁分区——贵重的 Windows 文件先备份到外置盘。
+5. **Windows 允许缩卷**。C: 启用了 BitLocker 时必须先在 Windows 内挂起保护（或在 live USB 上 `ntfsfix` + `ntfsresize`）。
+6. **Windows 卷当前至少有 512 GB 未用空间**。不足则更激进地缩，或参考"故障排除"中的"无回滚"绕过方案。
 
 ## 安装步骤
 
-安装分三个阶段——前置（准备 U 盘）、安装（分区+装系统）、后置（首次启动+验证）。
+安装分五个阶段。
 
 ### 阶段一——前置
 
-#### 1.1 确认目标硬件
+#### 1.1 在 Windows 内腾出 512 GB 空间
 
-在目标机器上（Linux live 环境或 Windows 中）确认硬件：
+从 Windows 内缩卷最安全——Windows 能挪自己的文件。
 
-```bash
-# Linux live 环境：
-lspci -nn | grep -E 'VGA|3D'          # 应看到 NVIDIA RTX 5060
-cat /proc/cpuinfo | grep 'model name' # 应看到 AMD Ryzen 9 8940HX
-lsblk                                 # 记下目标 NVMe 磁盘
-```
-
-若有任何组件不同，请先调整 `modules/nixos/hardware/` 下对应模块再继续。
+1. 正常启动 Windows。
+2. 若 C: 启用 BitLocker，先挂起保护：*设置 → 隐私和安全性 → 设备加密 → BitLocker → 挂起保护*（装完 NixOS 后再恢复；NixOS 不解锁 BitLocker）。
+3. 打开 `diskmgmt.msc`（磁盘管理）。右键 C: 分区 → **压缩卷**。输入 **524288 MB**（即 512 GiB）。Windows 可能因为不可移动文件拒绝缩到该值，可尝试：
+   - 关闭系统还原、休眠（`powercfg /h off`）、页面文件，再重试。
+   - 用第三方工具如 [DiskGenius](https://www.diskgenius.com/) 或 [AOMEI 分区助手](https://www.aomeitech.com/)（能挪 MFT）。
+4. 确认 C: 分区后面出现 512 GB "未分配"空间。
+5. **完全关机** Windows（不要用快速启动 / 混合关机——在控制面板 → 电源选项 → 选择电源按钮的功能 中关闭）。
 
 #### 1.2 烧录 ISO 至 U 盘
 
-在一台可用的电脑上制作启动 U 盘。**U 盘所有数据将被擦除。**
+在一台可用的电脑上制作启动 U 盘。**U 盘所有数据将被擦除**。
 
 Linux：
 
 ```bash
-# 确认 U 盘设备（不是分区）——例如 /dev/sdb，不是 /dev/sdb1
-lsblk
-
-# 写入 ISO（/dev/sdX 替换为 U 盘设备）
+lsblk                                   # 确认 U 盘设备，例如 /dev/sdb
 sudo cp nixos-*.iso /dev/sdX
 sync
 ```
 
-Windows 下可使用 [Rufus](https://rufus.ie/)（选择 DD 模式，不要用 ISO 模式）或 [balenaEtcher](https://etcher.balena.io/)。**不要**让 Rufus "添加"额外文件，需要按字节镜像写入。
+Windows 下可使用 [Rufus](https://rufus.ie/) 的 **DD 模式**（不要用 ISO 模式）或 [balenaEtcher](https://etcher.balena.io/)。
 
 #### 1.3 配置 UEFI 固件
 
-开机后按下 `F2` / `F12` / `Delete` / `Esc` 进入 UEFI 固件设置：
+开机后按 `F2` / `F12` / `Delete` / `Esc` 进入 UEFI 固件：
 
-- **关闭 Secure Boot**——NixOS 可在 Secure Boot 下启动，但 NVIDIA 驱动需要加载未签名内核模块。将 Secure Boot 设为 Disabled。
-- **将 USB 设为第一启动项**，或使用一次性启动菜单（`F12`）。
-- **SATA/NVMe 模式设为 AHCI**（不要用 RAID 或 Intel RST）。NVIDIA + btrfs 要求 AHCI。
-- **关闭 Fast Boot**——避免固件跳过 USB 枚举。
-- 保存退出，插入 U 盘。
+- **关闭 Secure Boot**——NVIDIA 驱动要加载未签名内核模块。
+- **将 USB 设为第一启动项**，或用一次性启动菜单（典型 `F12`）。
+- **NVMe/SATA 模式 = AHCI**（不要 RAID / Intel RST）。
+- **关闭 Fast Boot**——让固件枚举 USB。
+- 保存退出，插 U 盘。
 
 #### 1.4 启动 Live USB
 
-从 NixOS ISO 启动，在引导菜单选择 "NixOS 26.05 Installer"。TTY（或图形会话，取决于 ISO 版本）下以 `root` 登录（无密码）。
+启动 NixOS ISO，在引导菜单选 **NixOS 26.05 Installer**，TTY 下以 `root` 登录（无密码）。
 
-若安装需要拉取包，请连网：
+拉取网络（包要从网上下）：
 
 ```bash
 # 有线：通常自动。验证：
@@ -131,19 +146,131 @@ timedatectl set-ntp true
 timedatectl status
 ```
 
-### 阶段二——安装
+### 阶段二——在释放出的空间里分区
+
+本阶段只在 512 GB 未分配空间里创建分区。**其余分区完全不动**。每条命令**再三确认**——`parted` 不再问第二次。
 
 #### 2.1 进入支持 flake 的 shell
 
-Live ISO 默认未启用 flakes：
-
 ```bash
-nix-shell -p git vim disko --command bash
+nix-shell -p git vim parted btrfs-progs dosfstools --command bash
 ```
 
-将 `git`（克隆仓库）、`vim`（编辑）、`disko`（分区工具）拉入 shell。
+#### 2.2 确认目标磁盘与空闲空间
 
-#### 2.2 克隆仓库
+```bash
+lsblk
+# 确认 NVMe 是 /dev/nvme0n1，Windows 分区是 nvme0n1p3
+
+# 用 MiB 单位打印空闲空间映射
+parted /dev/nvme0n1 unit MiB print free
+```
+
+输出末尾类似：
+
+```
+Number  Start    End      Size     Type      File system  Flags
+ 1      0.02MiB  100MiB   100MiB   primary   fat32        boot, esp
+ 2      100MiB   116MiB   16MiB    primary   ntfs         msftdata
+ 3      116MiB   950GiB   950GiB   primary   ntfs         msftdata
+        950GiB   1462GiB  512GiB   Free Space
+```
+
+记下 Free Space 的 Start（MiB）与磁盘总 End，分别叫 `$FREE_START_MIB` 与 `$DISK_END_MIB`。上例为 `971776` MiB（= 950 × 1024）与 `1497088` MiB（= 1462 × 1024）。实际数字按你的磁盘算。
+
+#### 2.3 创建 NixOS ESP 与 btrfs 分区
+
+先算 ESP 末尾（ESP = 1024 MiB）：
+
+```bash
+ESP_START=971776                       # 你的 $FREE_START_MIB
+ESP_END=$((ESP_START + 1024))          # ESP_END = ESP_START + 1024 MiB
+DISK_END=1497088                       # 你的 $DISK_END_MIB
+```
+
+用显式 **partlabel** 创建分区：
+
+```bash
+parted ---pretend-input-tty /dev/nvme0n1 <<EOF
+unit MiB
+mkpart "nixos-esp" fat32 $ESP_START $ESP_END
+set ${num_esp} esp on
+mkpart "nixos-btrfs" btrfs $ESP_END $DISK_END
+print
+quit
+EOF
+```
+
+**注意**：`${num_esp}` 是刚创建的 ESP 的分区号。 parted 在每条命令后打印分区表，读出实际编号（通常是 `4`）替换之。需要时单独跑：
+
+```bash
+parted /dev/nvme0n1 set 4 esp on
+```
+
+确认 partlabel 已写入：
+
+```bash
+parted /dev/nvme0n1 print
+ls -l /dev/disk/by-partlabel/
+# 预期：nixos-esp -> ../../nvme0n1p4，nixos-btrfs -> ../../nvme0n1p5
+```
+
+#### 2.4 创建文件系统
+
+```bash
+# NixOS ESP（fat32）
+mkfs.fat -F32 -n NIXOS-ESP /dev/disk/by-partlabel/nixos-esp
+
+# NixOS btrfs
+mkfs.btrfs -L nixos /dev/disk/by-partlabel/nixos-btrfs
+```
+
+#### 2.5 创建 btrfs 子卷
+
+挂到 toplevel（`subvolid=5`），建三个子卷：
+
+```bash
+mkdir -p /mnt
+mount /dev/disk/by-partlabel/nixos-btrfs /mnt
+
+btrfs subvolume create /mnt/root
+btrfs subvolume create /mnt/persist
+btrfs subvolume create /mnt/nix
+
+# 为回滚种 @root-blank；下次开机回滚脚本检测"已存在"即可触发正向路径，
+# 同时验证 btrfs 子卷工具链可用。
+btrfs subvolume snapshot /mnt/root /mnt/@root-blank
+
+umount /mnt
+```
+
+### 阶段三——安装
+
+#### 3.1 把分区挂到 /mnt
+
+挂载参数与 `hardware.nix` 最终声明一致（compress=zstd、noatime、ssd），使运行时与安装时一致：
+
+```bash
+mount -o subvol=root,compress=zstd,noatime,ssd /dev/disk/by-partlabel/nixos-btrfs /mnt
+
+mkdir -p /mnt/{boot,nix,persist}
+
+mount /dev/disk/by-partlabel/nixos-esp /mnt/boot
+mount -o subvol=nix,compress=zstd,noatime,ssd /dev/disk/by-partlabel/nixos-btrfs /mnt/nix
+mount -o subvol=persist,compress=zstd,noatime,ssd /dev/disk/by-partlabel/nixos-btrfs /mnt/persist
+```
+
+验证：
+
+```bash
+mount | grep /mnt
+# 预期四条：/mnt (subvol=root)、/mnt/boot (vfat)、
+#           /mnt/nix (subvol=nix)、/mnt/persist (subvol=persist)
+
+df -h /mnt /mnt/boot /mnt/nix /mnt/persist
+```
+
+#### 3.2 克隆仓库
 
 ```bash
 cd /tmp
@@ -151,114 +278,29 @@ git clone https://github.com/uontabc/nixos_dev.git nixos
 cd nixos
 ```
 
-验证 flake 能求值：
-
-```bash
-nix flake show
-# 应列出：nixosConfigurations.uontabc
-```
-
-若 `nix flake show` 报 "experimental feature"，为当前 shell 启用 flakes：
+若 `nix flake` 报 experimental features，为本 shell 启用 flakes：
 
 ```bash
 mkdir -p ~/.config/nix
 echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
 ```
 
-#### 2.3 确认目标磁盘的稳定标识
-
-**关键**：使用稳定的 `by-id` 路径，而不是 `/dev/nvme0n1`。设备名重启后可能漂移，`by-id` 不会。
+验证 flake：
 
 ```bash
-ls -l /dev/disk/by-id/ | grep -v -E 'part|usb'
+nix flake show
+# 应列出：nixosConfigurations.uontabc
 ```
 
-输出类似：
+#### 3.3（可选演练）Dry-evaluate 系统
 
-```
-nvme-eui.000000000000000001a4e7b3e1234abc -> ../../nvme0n1
-nvme-Samsung_SSD_980_PRO_1TB_S5KXXXXXXXX -> ../../nvme0n1
-```
-
-记下最完整、最具体的 `nvme-eui.*` 或 `nvme-<model>_*` 路径。**再次三确认这就是你想擦除的磁盘**：
+若你调整过任何模块，先只求值不激活：
 
 ```bash
-# 确认磁盘容量和内容与预期一致
-sudo fdisk -l /dev/disk/by-id/nvme-eui.000000000000000001a4e7b3e1234abc
-smartctl -i /dev/disk/by-id/nvme-eui.000000000000000001a4e7b3e1234abc
+nix build .#nixosConfigurations.uontabc.config.system.build.toplevel --dry-run
 ```
 
-#### 2.4 在 disko 中配置磁盘
-
-用你偏好的编辑器编辑 `hosts/uontabc/disko.nix`：
-
-```bash
-vim hosts/uontabc/disko.nix
-```
-
-替换占位符：
-
-```nix
-device = lib.mkDefault "/dev/disk/by-id/REPLACE_WITH_YOUR_DISK_ID";
-```
-
-填入步骤 2.3 记录的路径，例如：
-
-```nix
-device = lib.mkDefault "/dev/disk/by-id/nvme-eui.000000000000000001a4e7b3e1234abc";
-```
-
-**不要**改 `partlabel`（`disk-main-btrfs`）——`postDeviceCommands` 中的回滚脚本依赖该标签。
-
-#### 2.5 disko 演练（推荐）
-
-执行破坏性操作前，让 disko 只显示将要做什么，不实际写入：
-
-```bash
-sudo nix run github:nix-community/disko -- \
-  --mode destroy,format,mount --dry-run --flake .#uontabc
-```
-
-检查打印的分区布局。预期：
-- 1 GB ESP（`vfat`，挂载至 `/mnt/boot`）
-- 剩余空间为 btrfs（`disk-main-btrfs`），子卷 `root` / `persist` / `nix` 分别挂载至 `/mnt` / `/mnt/persist` / `/mnt/nix`
-
-#### 2.6 执行 disko（破坏性）
-
-**这是目标磁盘的不归路。最后再确认一次：**
-
-```bash
-# 确认即将擦除的就是这块磁盘：
-cat hosts/uontabc/disko.nix | grep device
-```
-
-执行实际分区：
-
-```bash
-sudo nix run github:nix-community/disko -- \
-  --mode destroy,format,mount --flake .#uontabc
-```
-
-这将：
-1. **销毁**现有分区表。
-2. **格式化** ESP 为 vfat，其余为 btrfs。
-3. **挂载**全部内容至 `/mnt`。
-
-验证挂载：
-
-```bash
-mount | grep /mnt
-# 预期：
-# /mnt on /mnt type btrfs (subvol=root,...)
-# /mnt/boot on /mnt/boot type vfat
-# /mnt/nix on /mnt/nix type btrfs (subvol=nix,...)
-# /mnt/persist on /mnt/persist type btrfs (subvol=persist,...)
-
-ls /mnt
-# 应看到：boot  etc  home  nix  persist  root  ...
-```
-
-#### 2.7 安装 NixOS
+#### 3.4 安装 NixOS
 
 ```bash
 sudo nixos-install --flake .#uontabc --root /mnt
@@ -266,18 +308,21 @@ sudo nixos-install --flake .#uontabc --root /mnt
 
 安装程序将：
 - 构建闭包（5–30 分钟，取决于硬件和缓存）。
-- 将引导加载程序（GRUB）安装至 ESP。
+- 将 GRUB 安装至 **NixOS ESP**（`/boot`）——`boot.loader.efi.efiSysMountPoint = "/boot"` 保证 GRUB 写到 `nixos-esp`，绝不碰 Windows ESP。
 - 在 `/mnt` 注册新系统。
 
-提示设置 root 密码时，设一个。安装完成后**不要立即重启**——验证：
+提示设 root 密码时设一个。装完**不要立即重启**——验证：
 
 ```bash
-# 确认引导加载程序已安装
+# GRUB 装在 NixOS 自己的 ESP 里
 ls /mnt/boot/EFI/NixOS/
-# 应看到：.  ..  bootx64.efi  fwpkg/  grubx64.efi
+# 预期：.  ..  bootx64.efi  fwpkg/  grubx64.efi
 
-# 确认回滚快照脚本在 initrd 中
+# initrd 含回滚脚本
 ls /mnt/nix/store/*-nixos-system-*/initrd
+
+# UEFI 启动菜单新增 "NixOS" 条目
+efibootmgr
 ```
 
 随后关机：
@@ -286,126 +331,123 @@ ls /mnt/nix/store/*-nixos-system-*/initrd
 poweroff
 ```
 
-拔掉 U 盘，然后开机。
+拔 U 盘，开机。
 
-### 阶段三——后置
+### 阶段四——后置
 
-#### 3.1 首次启动
+#### 4.1 首次启动
 
-系统将进入 GRUB；唯一菜单项应为 "NixOS - Default"。选择之。
+进入 UEFI 一次性启动菜单（典型 `F12`）。应看到**两个**条目：
 
-initrd 运行回滚脚本：
-- **首次启动**：从 `root` 生成 `@root-blank` 基线快照。
-- **后续启动**：删除 `root` 并从 `@root-blank` 重新快照为 `root`（回滚至基线）。
+- **Windows Boot Manager**（在 Windows ESP）
+- **NixOS**（在 `nixos-esp`）
 
-随后系统继续引导至 `tuigreet`（登录提示）。
+选 **NixOS**。initrd 回滚脚本运行：
+- **首次启动**：因为 `@root-blank` 已存在（步骤 2.5 已建），它删除 `root` 并重新快照。语义上无副作用，仅验证回滚路径可用。
+- **后续启动**：同样操作——把 `/` 上的任何 imperative 改动回滚回去。
 
-以 `onyx` 登录，初始密码 `changeme`（定义于 `modules/nixos/core/users.nix`）。
+随后系统启动进入 `tuigreet`（登录提示）。以 `onyx` 登录，初始密码 `changeme`（定义于 `modules/nixos/core/users.nix`）。
 
-#### 3.2 立即修改密码
+#### 4.2 立即修改密码
 
 ```bash
-# 用户密码
-passwd
-
-# root 密码（安装时已设，可在这里改）
-sudo passwd root
+passwd                # 用户密码
+sudo passwd root      # root 密码
 ```
 
-建议将 `modules/nixos/core/users.nix` 的 `initialPassword` 替换为 `hashedPassword`（参见 [NixOS 手册](https://nixos.org/manual/nixos/stable/#sec-user-sha512)）。
+更稳妥的是将 `modules/nixos/core/users.nix` 中的 `initialPassword` 替换为 `hashedPassword`（参见 [NixOS 手册](https://nixos.org/manual/nixos/stable/#sec-user-sha512)）。
 
-#### 3.3 验证桌面会话
+#### 4.3 验证桌面会话
 
-登录后，tuigreet 应移交至 niri。应看到：
+登录后 tuigreet 应移交至 niri。应看到：
 - 空白 niri 桌面（一个空工作区）
-- Noctalia 作为 systemd 用户服务启动（bar / launcher）。若未启动，手动检查：
+- Noctalia 作为 systemd 用户服务启动——bar/launcher 可见
+
+若 Noctalia 缺失，检查：
 
 ```bash
 systemctl --user status noctalia
-# 应为 "active (running)"
-
-# 若失败，查日志：
 journalctl --user -u noctalia -b
 ```
 
-niri 配置位于 `~/.config/niri/config.kdl`（软链接至 nix store）。验证：
+验证 niri 配置：
 
 ```bash
-ls -l ~/.config/niri/config.kdl
-# 应为指向 /nix/store/<hash>-niri-config.kdl 的软链接
-
-niri validate
-# 应输出：Config is valid
+ls -l ~/.config/niri/config.kdl      # 应为指向 /nix/store/<hash>-niri-config.kdl 的软链接
+niri validate                         # 应输出：Config is valid
 ```
 
-#### 3.4 验证 NVIDIA 驱动
+#### 4.4 验证 NVIDIA 驱动
 
 ```bash
 nvidia-smi
-# 应显示 RTX 5060、驱动版本（570+）和 CUDA 版本。
+# 预期：RTX 5060、驱动版本 570+、CUDA 版本
 
 glxinfo | grep 'OpenGL renderer'
-# 应显示：OpenGL renderer string: NVIDIA GeForce RTX 5060 Laptop GPU
+# 预期：OpenGL renderer string: NVIDIA GeForce RTX 5060 Laptop GPU
 
-# 确认 modesetting 已启用：
 cat /sys/module/nvidia_drm/parameters/modeset
-# 应输出：Y
+# 预期：Y
 ```
 
-若 `nvidia-smi` 失败：
-- 确认 `modules/nixos/hardware/nvidia.nix` 中 `hardware.nvidia.open = true`（Blackwell 需要 open 模块）。
-- 查 `dmesg | grep -i nvidia` 排查模块加载错误。
+若 `nvidia-smi` 失败，确认 `modules/nixos/hardware/nvidia.nix` 中 `hardware.nvidia.open = true`，并查 `dmesg | grep -i nvidia`。
 
-#### 3.5 验证外屏（DP-1）
+#### 4.5 验证外屏（DP-1）
 
-接入 DP 显示器。niri 应自动识别。验证：
+接入 DP 显示器。niri 应自动识别：
 
 ```bash
 niri msg outputs
-# 应列出 eDP-1 (2560x1600@240Hz) 与 DP-1 (2560x1440@210Hz)
+# 预期：eDP-1 (2560×1600@240 Hz) 与 DP-1 (2560×1440@210 Hz) 均列出
 ```
 
-若输出名不同（例如 `DisplayPort-1` 而非 `DP-1`），请相应调整 `modules/nixos/desktop/niri.nix` 中的 `output` 节点。
+若输出名不同（如 `DisplayPort-1` 而非 `DP-1`），调整 `modules/nixos/desktop/niri.nix` 的 `output` 节点。
 
-#### 3.6 将仓库移至永久位置并固定 NH_FLAKE
+#### 4.6 验证 Windows 仍可启动
 
-`nh` 通过 `NH_FLAKE` 知道 flake 位置。本配置在 `modules/nixos/core/nh.nix` 中设为 `/home/onyx/nixos`：
+重启。在 UEFI 一次性启动菜单选 **Windows Boot Manager**。Windows 应正常启动。
+
+如果 GRUB 也通过 os-prober 自动检测到 Windows，你会在 GRUB 菜单看到 "Windows" 条目，可直接选。要触发 os-prober 重新检测：
 
 ```bash
-# 创建规范位置
-mkdir -p ~/nixos
+sudo nix-shell -p os-prober -c os-prober
+# 应输出：Found Windows Boot Manager on /dev/nvme0n1p1@/EFI/Microsoft/Boot/bootmgfw.efi
+```
 
-# live USB 上的克隆已不在，重新克隆：
+然后 `nh os switch`，让 GRUB 重新生成并 baked-in Windows 条目（前提：`efibootmgr` 中存在 Windows Boot Manager 条目，通常由 Windows 安装器创建）。
+
+#### 4.7 把仓库搬到永久位置并固定 NH_FLAKE
+
+`nh` 通过 `NH_FLAKE` 找 flake（`modules/nixos/core/nh.nix` 中设为 `/home/onyx/nixos`）：
+
+```bash
 cd ~
 git clone https://github.com/uontabc/nixos_dev.git nixos
 cd nixos
+
+echo $NH_FLAKE           # 应输出：/home/onyx/nixos
+nh os info               # 应打印当前系统信息
 ```
 
-验证 `nh` 能找到 flake：
-
-```bash
-echo $NH_FLAKE
-# 应输出：/home/onyx/nixos
-
-nh os info
-# 应打印当前系统信息
-```
-
-#### 3.7 通过 nh 应用更新
-
-从现在起通过 `nh` 操作 flake：
+#### 4.8 通过 nh 应用更新
 
 ```bash
 cd ~/nixos
-nix flake update        # 更新 flake.lock 至最新 nixpkgs-26.05
-nh os switch            # 构建 + 激活
+nix flake update          # 更新 flake.lock 至最新 nixpkgs-26.05
+nh os switch              # 构建 + 激活
 ```
 
-### 阶段四——（可选）NVIDIA PRIME Offload
+### 阶段五——（可选）删除 `@root-blank` 以关闭回滚
 
-**8940HX + RTX 5060 组合不需要。** HX 系列（Dragon Range）的 iGPU 被禁用或极简；dGPU 直接驱动显示器，这就是本配置中 `prime.offload.enable = false` 的原因。
+有人偏好"挂载即清"的 impermanence 但不要回滚。回滚由 `host/uontabc/hardware.nix` 的 `postDeviceCommands` 控制。要关闭它：注释掉整个 `boot.initrd.postDeviceCommands` 块，并删除已存在的 `@root-blank`：
 
-对于具备功能完整 iGPU + dGPU 的笔记本（非 HX 系列），可以启用 offload 模式——参见下方故障排除中的步骤。
+```bash
+sudo mount /dev/disk/by-partlabel/nixos-btrfs /mnt
+sudo btrfs subvolume delete /mnt/@root-blank
+sudo umount /mnt
+```
+
+无脚本重建；impermanence 的 `/persist` bind-mount 仍工作。
 
 ## 日常维护
 
@@ -414,7 +456,7 @@ nh os switch            # 构建 + 激活
 ```bash
 cd ~/nixos               # 仓库克隆位置
 nix flake update         # 更新 flake.lock
-nh os switch             # 构建并激活（自动读取 NH_FLAKE）
+nh os switch             # 构建并激活
 ```
 
 ### 修改后重建
@@ -429,11 +471,11 @@ nh clean all            # 手动 GC（每周自动 GC 已在 core/nh.nix 配置�
 
 ### 回滚
 
-GRUB 启动菜单列出最近 10 个 generation（`configurationLimit = 10`），选择较早的 generation 即可回滚。回滚仅作用于 ephemeral root 子卷，`/persist` 下的持久化数据不受影响。
+GRUB 启动菜单列出最近 10 个 generation（`configurationLimit = 10`），选较老的 generation 即可回滚。回滚仅作用于 ephemeral root 子卷，`/persist` 下持久化数据不受影响。
 
 ### 修改 niri 配置
 
-编辑 `modules/nixos/desktop/niri.nix`。niri 热重载 `config.kdl`，保存即生效。语法错误会输出至日志：
+编辑 `modules/nixos/desktop/niri.nix`。niri 热重载 `config.kdl`，保存即生效。语法错误输出至日志：
 
 ```bash
 journalctl --user -u niri -f
@@ -453,14 +495,39 @@ journalctl --user -u niri -f
 
 ## 故障排除
 
-### GRUB 未检测到 Windows
+### GRUB / efibootmgr 里看不到 Windows
 
 ```bash
-efibootmgr                                # 确认 Windows Boot Manager 条目存在
+efibootmgr                                # 确认 Windows Boot Manager 条目
 sudo nix-shell -p os-prober -c os-prober  # 测试 os-prober 探测
 ```
 
-若 os-prober 未找到 Windows，检查 NTFS 支持是否生效——确认 `modules/nixos/core/boot.nix` 中 `boot.supportedFilesystems = ["btrfs" "ntfs"]`。
+若 `efibootmgr` 无 Windows 条目（罕见——通常 Windows 安装器会创建），手动重建：
+
+```bash
+sudo efibootmgr --create --disk /dev/nvme0n1 --part 1 \
+  --label "Windows Boot Manager" \
+  --loader '\\EFI\\Microsoft\\Boot\\bootmgfw.efi'
+```
+
+然后再 `os-prober` → `nh os switch`。
+
+### parted 抱怨 Windows 休眠中无法缩卷
+
+Windows 的"快速启动"是一种半休眠。在 Windows 内关闭：*控制面板 → 电源选项 → 选择电源按钮的功能 → 取消勾选"启用快速启动"*。然后**完全关机**（不是重启）。
+
+### 缩卷后 BitLocker 把我锁外了
+
+若 parted 操作后 Windows 启动要求 BitLocker 恢复密钥——你 BitLocker 没挂起就改了分区。**事前**从 Windows 内挂起（见 1.1 第 2 步）。当前恢复：用恢复密钥启动 Windows，登录，挂起 BitLocker，如果还有未建的分区就再跑 parted。
+
+### `nixos-install` 报 `/mnt` 无空间
+
+多半是不小心把子卷建到 ESP（fat32，1 GB）里去了。重挂并校验子卷在 btrfs 分区里：
+
+```bash
+mount | grep /mnt
+# /mnt 必须在 subvol=root 的 nixos-btrfs 上，不在 fat32 ESP 上
+```
 
 ### NVIDIA 驱动异常
 
@@ -470,17 +537,23 @@ cat /sys/module/nvidia_drm/parameters/modeset  # 预期 Y
 nvidia-smi                                     # dGPU 状态
 ```
 
-若 Blackwell GPU 运行 `nvidia-smi` 失败，检查 `nvidia.nix` 中 `hardware.nvidia.open = true`——Blackwell 必须使用 open 内核模块。
+若 Blackwell 上 `nvidia-smi` 失败，确认 `nvidia.nix` 中 `hardware.nvidia.open = true`——Blackwell 必须 open 模块。
+
+### disko 擦盘警示（双系统——历史）
+
+早期 README 用 `disko --mode destroy,format,mount`，会擦 Windows。该模式已彻底删除。如果你看到旧版 README 提到 disko，忽略——当前布局是手动 `parted` + `fileSystems`，正是为了支持同盘双系统。
 
 ### 在混合架构笔记本上启用 PRIME offload（不适用于 8940HX）
 
-对于具备功能完整 iGPU + dGPU 的笔记本（HX 系列除外），启用 offload 模式：
+8940HX（Dragon Range）无可用 iGPU——dGPU 直接驱动显示器，PRIME offload **不需要**，默认禁用。
+
+对其他具备功能完整 iGPU + dGPU 的笔记本：
 
 ```bash
 lspci -nn | grep -E 'VGA|3D'
 ```
 
-将十六进制 PCI 地址转换为 NixOS 格式（十进制 `总线:设备.功能`）：
+将十六进制 PCI 地址转为 NixOS 格式（十进制 `总线:设备.功能`）：
 
 | PCI 地址 | NixOS BusID |
 |---|---|
@@ -500,21 +573,20 @@ hardware.nvidia.prime = {
 };
 ```
 
-rebuild 后使用 `nvidia-offload <程序>` 将程序调度至 dGPU 运行。
+rebuild 后用 `nvidia-offload <程序>` 调度至 dGPU。
 
-### disko 擦盘警示（双系统）
-
-disko 的 `--mode destroy,format,mount` 会重写整盘 GPT 分区表，**无法保留同盘 Windows**。两种安全方案：
-
-1. **独立物理磁盘**——将 `disko.nix` 的 `device` 指向 NixOS 所在磁盘，Windows 不受影响
-2. **同盘安装**——跳过 disko 的 destroy 模式，手动用 `parted` 缩小 Windows 分区、创建 btrfs 分区，并自行填写 `fileSystems`。从 `disko.nix` 中删除 `disko.devices` 块，并验证 `postDeviceCommands` 回滚脚本与实际分区标签的一致性
-
-### 首次启动卡在 initrd
-
-`hosts/uontabc/disko.nix` 中的回滚脚本依赖分区标签 `disk-main-btrfs`（disko 自动生成）。验证：
+### Initrd 卡住——回滚脚本找不到 `nixos-btrfs`
 
 ```bash
-ls -l /dev/disk/by-partlabel/ | grep btrfs
+ls -l /dev/disk/by-partlabel/ | grep nixos
+# 预期：nixos-esp 与 nixos-btrfs
+```
+
+若缺失，parted 里忘设 name 了。再进 live USB 补设：
+
+```bash
+parted /dev/nvme0n1 name 4 nixos-esp
+parted /dev/nvme0n1 name 5 nixos-btrfs
 ```
 
 ### niri 启动失败
@@ -528,20 +600,22 @@ niri validate                   # 验证配置语法
 
 ### 双系统后时钟偏差
 
-Windows 期望硬件时钟为本地时间；NixOS 期望 UTC。若时钟漂移：
+Windows 期望硬件时钟为本地时间；NixOS 期望 UTC。**从 Windows 端修**（使 NixOS 保持正确）：
 
-```bash
-timedatectl set-local-rtc 0   # NixOS 保持 UTC；在 Windows 端修复：
-# Windows 中运行：reg add "HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation" /v RealTimeIsUniversal /t REG_DWORD /d 1 /f
+```bat
+:: Windows 以管理员运行：
+reg add "HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation" /v RealTimeIsUniversal /t REG_DWORD /d 1 /f
 ```
+
+这使 Windows 把硬件时钟视为 UTC，与 NixOS 一致。**不要**在 NixOS 端用 `timedatectl set-local-rtc 1`——systemd 上游不推荐。
 
 ## 参考
 
 - [niri 文档](https://niri-wm.github.io/niri/)
 - [Noctalia 文档](https://docs.noctalia.dev)
 - [NixOS & Nix Flakes Book](https://nixos-and-flakes.thiscute.world/)
-- [disko](https://github.com/nix-community/disko)
 - [impermanence](https://github.com/nix-community/impermanence)
+- [btrfs subvolumes — Arch Wiki](https://wiki.archlinux.org/title/Btrfs#Subvolumes)（回滚模式借鉴自此）
 - [ryan4yin/nix-config](https://github.com/ryan4yin/nix-config)——参考其 niri + Noctalia + impermanence 组合
 
 ## 许可证

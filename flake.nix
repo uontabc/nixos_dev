@@ -4,11 +4,6 @@
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-26.05";
 
-    disko = {
-      url = "github:nix-community/disko";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
     impermanence.url = "github:nix-community/impermanence";
 
     # Tracks upstream (nixos-unstable); if it breaks vs 26.05, drop `follows`.
@@ -26,7 +21,6 @@
 
         modules = [
           ./hosts/uontabc
-          inputs.disko.nixosModules.disko
           inputs.impermanence.nixosModules.impermanence
           inputs.noctalia.nixosModules.default
         ];
