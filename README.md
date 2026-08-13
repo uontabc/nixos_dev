@@ -1,73 +1,71 @@
-# uontabc — NixOS 配置
+# uontabc — NixOS Configuration
 
-基于 [Nix Flakes](https://nixos.wiki/wiki/Flakes) 的 NixOS 配置（**纯 NixOS modules，不用 home-manager**），桌面用 [niri](https://github.com/niri-wm/niri) + [Noctalia v5](https://github.com/noctalia-dev/noctalia)，盘用 [disko](https://github.com/nix-community/disko) 声明式分 btrfs，根目录靠 [impermanence](https://github.com/nix-community/impermanence) 做不可变回滚，命令交互用 [nh](https://github.com/nix-community/nh)。
+A declarative NixOS desktop configuration built entirely on NixOS modules (no home-manager). It pairs the [niri](https://github.com/niri-wm/niri) scrollable-tiling compositor with [Noctalia v5](https://github.com/noctalia-dev/noctalia) for the shell layer, [disko](https://github.com/nix-community/disko) for declarative btrfs partitioning, and [impermanence](https://github.com/nix-community/impermanence) for an ephemeral root with snapshot-based rollback. System maintenance is handled through [nh](https://github.com/nix-community/nh).
 
-## 特性
+## Features
 
-- **滚动式平铺合成器** niri，配置走 KDL 热重载
-- **桌面 shell** Noctalia v5 beta（bar/launcher/notification/lock/控制中心一体，systemd 管理）
-- **声明式分盘** disko + btrfs，子卷 `root`/`persist`/`nix`
-- **不可变根** impermanence 持久化关键状态，每次开机把 root 子卷回滚到 `@root-blank` 快照
-- **双系统友好** GRUB + os-prober 自动探测 Windows Boot Manager，ntfs3 支持挂载 Windows 数据盘
-- **滚动 nixpkgs** 跟 `nixos-26.05` stable 分支
-- **硬件驱动** AMD CPU（microcode + amd-pstate）+ NVIDIA RTX 5060 Laptop（Blackwell，open 内核模块 + stable driver）
-- **轻 session** tuigreet 登录到 niri，不写自制 session 脚本
-- **nh** 作为 `nixos-rebuild` 的替代 CLI（带 fzf 选择 generation、自动垃圾回收）
+- **Scrollable-tiling compositor** — niri with KDL configuration and live reload
+- **Desktop shell** — Noctalia v5 (bar, launcher, notifications, lock screen, control center), managed as a systemd user service
+- **Declarative disk partitioning** — disko with btrfs subvolumes `root` / `persist` / `nix`
+- **Ephemeral root** — impermanence persists critical state; the root subvolume is rolled back to the `@root-blank` snapshot on every boot
+- **Dual-boot support** — GRUB with os-prober detects the Windows Boot Manager; NTFS support via ntfs3 for data partitions
+- **Hardware drivers** — AMD CPU (microcode + amd-pstate) + NVIDIA RTX 5060 Laptop (Blackwell, open kernel modules + stable driver)
+- **Login** — tuigreet launches the niri session directly; no custom session scripts
+- **nh** — replaces `nixos-rebuild` with fzf-based generation selection and automatic weekly garbage collection
 
-## 目录结构
+## Directory Structure
 
 ```
 .
-├── flake.nix                       # 入口，声明 inputs + nixosConfiguration
-├── hosts/uontabc/                  # 单台主机
-│   ├── default.nix                 #   主机入口
-│   ├── hardware.nix                #   留空（disko 接管 fileSystems）
-│   └── disko.nix                   #   声明式分盘 + btrfs 回滚脚本
-└── modules/nixos/                  # 全部用 NixOS 模块（无 home-manager）
-    ├── default.nix                 # 汇总 import
-    ├── core/                       #   基础系统：boot/networking/locale/users/packages/env/nh
-    ├── hardware/                   #   硬件：cpu-amd/nvidia/graphics/bluetooth/input
-    ├── desktop/                    #   桌面：display(greetd)/portal/audio/fonts/niri/noctalia/qt/kitty
-    └── persistence/               #   impermanence 持久化
+├── flake.nix                       # Flake entry: inputs + nixosConfiguration
+├── hosts/uontabc/
+│   ├── default.nix                 # Host entry
+│   ├── hardware.nix                # Empty — disko manages fileSystems
+│   └── disko.nix                   # Declarative partitioning + btrfs rollback
+└── modules/nixos/                  # All NixOS modules (no home-manager)
+    ├── default.nix                 # Aggregate import
+    ├── core/                       # boot, networking, locale, users, packages, env, nh
+    ├── hardware/                   # cpu-amd, nvidia, graphics, bluetooth, input
+    ├── desktop/                    # display, portal, audio, fonts, niri, noctalia, qt, kitty
+    └── persistence/               # impermanence
 ```
 
-用户级配置（niri KDL、kitty.conf、用户包）全部在 `modules/nixos/desktop/*` 和 `modules/nixos/core/users.nix` 里管理：
-- 用户包 → `users.users.onyx.packages`
-- 配置文件 → `pkgs.writeText` 写入 nix store，再用 `systemd.tmpfiles.rules` 软链到 `/home/onyx/.config/...`
+User-level configuration is managed entirely within `modules/nixos/`:
 
-## 硬件假设
+- User packages → `users.users.onyx.packages` (`core/users.nix`)
+- Configuration files (niri KDL, kitty.conf) → `pkgs.writeText` produces a nix-store path, then `systemd.tmpfiles.rules` symlinks it into `/home/onyx/.config/...`
 
-可直接装；如果你的硬件不一样，要改的是这些：
+## Hardware Profile
 
-| 硬件 | 我假设 | 你要改的地方 |
+| Component | Assumed | Adjust in |
 |---|---|---|
-| CPU | AMD Ryzen（Zen 3+） | `modules/nixos/hardware/cpu-amd.nix`；Intel 就删该 import 换 `microcodeIntel` |
-| dGPU | NVIDIA RTX 5060 Laptop（Blackwell sm_120） | `modules/nixos/hardware/nvidia.nix` |
-| iGPU | AMD iGPU（hybrid 笔记本） | 双屏 hybrid 才需要设 `prime.amdgpuBusId` |
-| 显示器 | eDP-1 1920x1080 | `modules/home/niri/default.nix` 的 `output` 节点 |
-| 盘 | 单 NVMe，整盘给 NixOS | `hosts/uontabc/disko.nix` 的 `device` |
+| CPU | AMD Ryzen (Zen 3+) | `modules/nixos/hardware/cpu-amd.nix` |
+| dGPU | NVIDIA RTX 5060 Laptop (Blackwell sm_120) | `modules/nixos/hardware/nvidia.nix` |
+| iGPU | AMD iGPU (hybrid laptop) | Set `prime.amdgpuBusId` in `nvidia.nix` |
+| Internal display | eDP-1, 2560×1600 @ 240 Hz | `modules/nixos/desktop/niri.nix` `output` block |
+| External display | DP-1, 2560×1440 @ 210 Hz | same |
+| Disk | Single NVMe, dedicated to NixOS | `hosts/uontabc/disko.nix` `device` field |
 
-## 准备
+## Prerequisites
 
-1. 一台 **UEFI** 启动的机器
-2. [nixos-26.05 ISO](https://nixos.org/download/) 烧好的 live USB
-3. **硬盘数据已备份**（disko 会擦盘）
-4. 双系统的话，**Windows 装在另一块物理盘**（同盘装必然要手动分区，不能用 disko 的 `destroy` 模式）
+1. A UEFI-bootable machine with Secure Boot disabled
+2. A [NixOS 26.05 ISO](https://nixos.org/download/) flashed to USB
+3. **All disk data backed up** — disko's `destroy` mode wipes the target disk
+4. For dual-boot: Windows installed on a **separate physical disk** (disko cannot preserve same-disk Windows)
 
-## 安装步骤
+## Installation
 
-### 1. 启动到 live USB
+### 1. Boot the live USB
 
-- UEFI 里关 Secure Boot
-- 启动 live USB
+Disable Secure Boot in UEFI firmware settings, then boot the NixOS live ISO.
 
-### 2. 启用 flakes + 拉 git
+### 2. Enter a shell with git and an editor
 
 ```bash
 sudo nix-shell -p git vim
 ```
 
-### 3. 克隆本仓库
+### 3. Clone the repository
 
 ```bash
 cd /tmp
@@ -75,188 +73,430 @@ git clone <your-repo-url> nixos
 cd nixos
 ```
 
-### 4. 找到你的磁盘 stable ID
+### 4. Identify the target disk by stable ID
 
 ```bash
 ls -l /dev/disk/by-id/ | grep -v -E 'part|usb'
 ```
 
-记下 NVMe 的 by-id 路径，长这样：`nvme-eui.000000000000000001234567890123`。
-**用 by-id 而不是 `/dev/nvme0n1`**，重启后盘符可能变，by-id 不会。
+Record the `by-id` path of the target NVMe device, e.g. `nvme-eui.000000000000000001234567890123`. Using `by-id` rather than `/dev/nvme0n1` ensures stability across reboots.
 
-### 5. 改 disko.nix
+### 5. Configure the disk in disko
 
-编辑 `hosts/uontabc/disko.nix`，把：
+Edit `hosts/uontabc/disko.nix` and replace the placeholder:
 
 ```nix
 device = lib.mkDefault "/dev/disk/by-id/REPLACE_WITH_YOUR_DISK_ID";
 ```
 
-换成你上一步记下的路径。
+with the path obtained in step 4.
 
-### 6. 跑 disko（会清盘，**这是最后一次确认你的数据已备份**）
+### 6. Partition and format with disko
+
+**This operation destroys all data on the target disk. Verify the disk identifier before proceeding.**
 
 ```bash
 sudo nix run github:nix-community/disko -- \
   --mode destroy,format,mount --flake .#uontabc
 ```
 
-跑完会自动把分区 mount 到 `/mnt`。可以验证：
+Upon completion the partitions are mounted under `/mnt`:
 
 ```bash
 mount | grep /mnt
-# 应该看到 /mnt /mnt/boot /mnt/nix /mnt/persist
+# Expected: /mnt, /mnt/boot, /mnt/nix, /mnt/persist
+```
+
+### 7. Install NixOS
+
+```bash
+sudo nixos-install --flake .#uontabc --root /mnt
+```
+
+Set the root password when prompted, then power off, remove the USB, and boot.
+
+### 8. First boot
+
+- Log in as `onyx` with the initial password `changeme` (defined in `modules/nixos/core/users.nix`).
+- **Immediately change the password:**
+
+  ```bash
+  passwd
+  ```
+
+- On first boot the btrfs rollback script seeds the `@root-blank` baseline snapshot from the `root` subvolume. Subsequent boots roll `root` back to `@root-blank` automatically.
+
+### 9. (Optional) Enable NVIDIA PRIME offload
+
+For hybrid laptops (iGPU + dGPU), the PCI bus IDs must be configured for offload mode.
+
+Identify the GPU addresses:
+
+```bash
+lspci -nn | grep -E 'VGA|3D'
+```
+
+Convert the hexadecimal PCI addresses to the NixOS format (decimal `bus:device.function`):
+
+| PCI address | NixOS BusID |
+|---|---|
+| `00:02.0` | `PCI:0:2:0` |
+| `01:00.0` | `PCI:1:0:0` |
+
+Edit `modules/nixos/hardware/nvidia.nix`:
+
+```nix
+hardware.nvidia.prime = {
+  offload = {
+    enable = lib.mkDefault true;
+    enableOffloadCmd = lib.mkDefault true;
+  };
+  amdgpuBusId = "PCI:5:0:0";   # AMD iGPU
+  nvidiaBusId = "PCI:1:0:0";   # NVIDIA dGPU
+};
+```
+
+After rebuilding, offload a program to the dGPU with `nvidia-offload <program>`.
+
+## Maintenance
+
+### Update the flake inputs
+
+```bash
+cd ~/nixos               # repository clone location
+nix flake update         # update flake.lock
+nh os switch             # build and activate (reads NH_FLAKE)
+```
+
+### Rebuild after a configuration change
+
+```bash
+nh os switch             # build + activate
+nh os test               # build + test (no activation)
+nh os boot               # set as default for next boot
+nh os switch -- -v       # pass verbose to nixos-rebuild
+nh clean all            # manual GC (automatic weekly GC configured in core/nh.nix)
+```
+
+### Rollback
+
+The GRUB boot menu lists the 10 most recent generations (`configurationLimit = 10`). Select an older generation to boot into it. Rollback operates on the ephemeral root subvolume only; persisted data under `/persist` is unaffected.
+
+### Modify niri configuration
+
+Edit `modules/nixos/desktop/niri.nix`. Niri hot-reloads `config.kdl` on save. Configuration errors surface in the journal:
+
+```bash
+journalctl --user -u niri -f
+```
+
+Reference: https://niri-wm.github.io/niri/Configuration:-Introduction
+
+## Persistence
+
+Because `/` is ephemeral (rolled back on each boot):
+
+- Do not store long-lived data directly under `/` — it will not survive a reboot.
+- System state to persist: add to `modules/nixos/persistence/impermanence.nix` → `directories` / `files`.
+- User state to persist: add to the same file → `users.onyx.directories` (`Documents`, `Downloads`, etc. are already listed).
+- `~/.config` is intentionally **not** persisted; niri and kitty configs are bind-symlinked to the nix store via `systemd.tmpfiles`.
+- To persist Noctalia's GUI settings, add `"noctalia"` to `users.onyx.directories`.
+
+## Troubleshooting
+
+### Windows not detected by GRUB
+
+```bash
+efibootmgr                                # verify Windows Boot Manager entry exists
+sudo nix-shell -p os-prober -c os-prober  # test os-prober detection
+```
+
+If os-prober fails to locate Windows, verify that NTFS support is available — check `boot.supportedFilesystems = ["btrfs" "ntfs"]` in `modules/nixos/core/boot.nix`.
+
+### NVIDIA driver issues
+
+```bash
+cat /proc/driver/nvidia/version               # expect 570+
+cat /sys/module/nvidia_drm/parameters/modeset  # expect Y
+nvidia-smi                                     # dGPU status
+```
+
+If `nvidia-smi` fails on a Blackwell GPU, verify `hardware.nvidia.open = true` in `nvidia.nix` — Blackwell requires open kernel modules.
+
+### disko data-loss warning (dual-boot)
+
+disko's `--mode destroy,format,mount` rewrites the entire GPT partition table and **cannot preserve a same-disk Windows installation**. Two safe approaches:
+
+1. **Separate physical disk** — point `disko.nix` `device` at the NixOS disk; Windows remains untouched.
+2. **Same disk** — skip disko's destroy mode; manually shrink the Windows partition with `parted`, create btrfs partitions, and populate `fileSystems` directly. Remove the `disko.devices` block from `disko.nix` and verify the `postDeviceCommands` rollback script against the actual partition label.
+
+### Initrd hang on first boot
+
+The rollback script in `hosts/uontabc/disko.nix` relies on the partition label `disk-main-btrfs` (auto-generated by disko). Verify:
+
+```bash
+ls -l /dev/disk/by-partlabel/ | grep btrfs
+```
+
+### niri fails to start
+
+```bash
+journalctl --user -u niri -b    # current boot logs
+niri validate                   # validate config syntax
+```
+
+Config path: `~/.config/niri/config.kdl` (symlinked to nix store via `systemd.tmpfiles`).
+
+## References
+
+- [niri documentation](https://niri-wm.github.io/niri/)
+- [Noctalia documentation](https://docs.noctalia.dev)
+- [NixOS & Nix Flakes Book](https://nixos-and-flakes.thiscute.world/)
+- [disko](https://github.com/nix-community/disko)
+- [impermanence](https://github.com/nix-community/impermanence)
+- [ryan4yin/nix-config](https://github.com/ryan4yin/nix-config) — reference for niri + Noctalia + impermanence composition
+
+## License
+
+MIT
+
+---
+
+# 中文文档
+
+一份完全基于 NixOS 模块（不使用 home-manager）的声明式桌面配置。合成器采用 [niri](https://github.com/niri-wm/niri)（滚动式平铺），桌面 shell 采用 [Noctalia v5](https://github.com/noctalia-dev/noctalia)，分盘用 [disko](https://github.com/nix-community/disko) 声明 btrfs 布局，根目录通过 [impermanence](https://github.com/nix-community/impermanence) 实现不可变快照回滚，日常维护命令使用 [nh](https://github.com/nix-community/nh)。
+
+## 特性概览
+
+- **滚动平铺合成器** niri，KDL 配置热重载
+- **桌面 shell** Noctalia v5 beta（bar / launcher / 通知 / 锁屏 / 控制中心，systemd 用户服务管理）
+- **声明式分盘** disko + btrfs，子卷 `root` / `persist` / `nix`
+- **不可变根** 每次开机将 root 子卷回滚至 `@root-blank` 基线快照；impermanence 持久化关键状态
+- **双系统** GRUB + os-prober 自动探测 Windows Boot Manager；ntfs3 支持挂载 NTFS 数据盘
+- **硬件驱动** AMD CPU（microcode + amd-pstate）+ NVIDIA RTX 5060 Laptop（Blackwell，open 内核模块 + stable 驱动）
+- **登录** tuigreet 直接启动 niri 会话，无自制脚本
+- **nh** 替代 `nixos-rebuild`，支持 fzf 选择 generation 及每周自动 GC
+
+## 目录结构
+
+```
+.
+├── flake.nix                       # Flake 入口：inputs + nixosConfiguration
+├── hosts/uontabc/
+│   ├── default.nix                 # 主机入口
+│   ├── hardware.nix                # 留空——disko 接管 fileSystems
+│   └── disko.nix                   # 声明式分盘 + btrfs 回滚脚本
+└── modules/nixos/                  # 全部为 NixOS 模块（无 home-manager）
+    ├── default.nix                 # 汇总 import
+    ├── core/                       # boot / networking / locale / users / packages / env / nh
+    ├── hardware/                   # cpu-amd / nvidia / graphics / bluetooth / input
+    ├── desktop/                    # display / portal / audio / fonts / niri / noctalia / qt / kitty
+    └── persistence/               # impermanence
+```
+
+用户级配置完全在 `modules/nixos/` 内管理：
+
+- 用户包 → `users.users.onyx.packages`（`core/users.nix`）
+- 配置文件（niri KDL、kitty.conf）→ `pkgs.writeText` 生成 nix store 路径，再由 `systemd.tmpfiles.rules` 软链接至 `/home/onyx/.config/...`
+
+## 硬件配置
+
+| 组件 | 假设 | 修改位置 |
+|---|---|---|
+| CPU | AMD Ryzen（Zen 3+） | `modules/nixos/hardware/cpu-amd.nix` |
+| dGPU | NVIDIA RTX 5060 Laptop（Blackwell sm_120） | `modules/nixos/hardware/nvidia.nix` |
+| iGPU | AMD iGPU（混合架构笔记本） | 在 `nvidia.nix` 中设置 `prime.amdgpuBusId` |
+| 内屏 | eDP-1，2560×1600 @ 240 Hz | `modules/nixos/desktop/niri.nix` 的 `output` 节点 |
+| 外屏 | DP-1，2560×1440 @ 210 Hz | 同上 |
+| 磁盘 | 单 NVMe，整盘给 NixOS | `hosts/uontabc/disko.nix` 的 `device` |
+
+## 前置条件
+
+1. 支持 UEFI 启动的机器，Secure Boot 已关闭
+2. 已烧录 [NixOS 26.05 ISO](https://nixos.org/download/) 的 USB 启动盘
+3. **目标磁盘数据已完整备份**——disko 的 `destroy` 模式会擦除整盘
+4. 双系统安装：Windows 须位于**独立物理磁盘**（disko 无法保留同盘 Windows）
+
+## 安装步骤
+
+### 1. 启动 Live USB
+
+在 UEFI 固件设置中关闭 Secure Boot，从 NixOS Live ISO 启动。
+
+### 2. 进入含 git 和编辑器的 shell
+
+```bash
+sudo nix-shell -p git vim
+```
+
+### 3. 克隆仓库
+
+```bash
+cd /tmp
+git clone <your-repo-url> nixos
+cd nixos
+```
+
+### 4. 确认目标磁盘的稳定标识
+
+```bash
+ls -l /dev/disk/by-id/ | grep -v -E 'part|usb'
+```
+
+记下目标 NVMe 设备的 `by-id` 路径，例如 `nvme-eui.000000000000000001234567890123`。使用 `by-id` 而非 `/dev/nvme0n1` 可避免重启后盘符漂移。
+
+### 5. 在 disko 中配置磁盘
+
+编辑 `hosts/uontabc/disko.nix`，替换占位符：
+
+```nix
+device = lib.mkDefault "/dev/disk/by-id/REPLACE_WITH_YOUR_DISK_ID";
+```
+
+填入步骤 4 记录的路径。
+
+### 6. 执行 disko 分区与格式化
+
+**此操作将清除目标磁盘上的所有数据。执行前务必再次确认磁盘标识。**
+
+```bash
+sudo nix run github:nix-community/disko -- \
+  --mode destroy,format,mount --flake .#uontabc
+```
+
+完成后分区将挂载至 `/mnt`：
+
+```bash
+mount | grep /mnt
+# 预期输出：/mnt、/mnt/boot、/mnt/nix、/mnt/persist
 ```
 
 ### 7. 安装 NixOS
 
 ```bash
 sudo nixos-install --flake .#uontabc --root /mnt
-# 装完问你要 root 密码，设个
 ```
 
-完了关机、拔 U 盘、开机。
+按提示设置 root 密码，安装完成后关机、拔除 USB、重启。
 
 ### 8. 首次启动
 
-- 用 `onyx` 用户登录，密码是 `changeme`（`modules/nixos/core/users.nix` 的 `initialPassword`）
-- **第一时间改密码**：
+- 以 `onyx` 用户登录，初始密码 `changeme`（定义于 `modules/nixos/core/users.nix`）。
+- **立即修改密码：**
 
   ```bash
   passwd
   ```
 
-- 第一次启动时 btrfs 回滚脚本会从 `root` 快照 seed 一个 `@root-blank` 基线快照，此后每次开机自动回滚到 `@root-blank`。
+- 首次启动时 btrfs 回滚脚本从 `root` 子卷生成 `@root-blank` 基线快照，此后每次开机自动将 `root` 回滚至 `@root-blank`。
 
-### 9. （可选）启用 NVIDIA PRIME 双显卡 offload
+### 9.（可选）启用 NVIDIA PRIME Offload 模式
 
-如果你的笔记本是 **iGPU + dGPU 混合**（不是独显直连），需要给 NVIDIA 设 BusID 才能让 Offload 模式正常工作。
+混合架构笔记本（iGPU + dGPU）需配置 PCI BusID 以启用 Offload 模式。
+
+获取 GPU 地址：
 
 ```bash
 lspci -nn | grep -E 'VGA|3D'
 ```
 
-拿到两个 GPU 的 PCI 地址。NixOS 要求把地址转成十进制：
-- `00:02.0` → `PCI:0:0:2:0`（其实 NixOS 接受 `PCI:0:2:0`）
-- `01:00.0` → `PCI:1:0:0`
+将十六进制 PCI 地址转换为 NixOS 格式（十进制 `总线:设备.功能`）：
 
-然后编辑 `modules/nixos/hardware/nvidia.nix`：
+| PCI 地址 | NixOS BusID |
+|---|---|
+| `00:02.0` | `PCI:0:2:0` |
+| `01:00.0` | `PCI:1:0:0` |
+
+编辑 `modules/nixos/hardware/nvidia.nix`：
 
 ```nix
 hardware.nvidia.prime = {
   offload = {
-    enable = lib.mkDefault true;            # ← 改成 true
-    enableOffloadCmd = lib.mkDefault true;  # ← 改成 true
+    enable = lib.mkDefault true;
+    enableOffloadCmd = lib.mkDefault true;
   };
-  amdgpuBusId = "PCI:5:0:0";   # ← 填你的 AMD iGPU BusID
-  nvidiaBusId = "PCI:1:0:0";   # ← 填你的 NVIDIA dGPU BusID
+  amdgpuBusId = "PCI:5:0:0";   # AMD iGPU
+  nvidiaBusId = "PCI:1:0:0";   # NVIDIA dGPU
 };
 ```
 
-rebuild 后想用 dGPU 跑程序：`nvidia-offload <program>`。
+rebuild 后使用 `nvidia-offload <程序>` 将程序调度至 dGPU 运行。
 
-## 日常使用
+## 日常维护
 
-### 更新整个 flake
+### 更新 Flake 输入
 
 ```bash
-cd ~/nixos               # 假设你把仓库 clone 到这
+cd ~/nixos               # 仓库克隆位置
 nix flake update         # 更新 flake.lock
-nh os switch             # = nixos-rebuild switch（nh 自动从 NH_FLAKE 找 flake）
+nh os switch             # 构建并激活（自动读取 NH_FLAKE）
 ```
 
-### 只改配置（不更新 flake）
+### 修改后重建
 
 ```bash
-nh os switch             # 全部等都由 NixOS 系统层一处管理，无单独 home-manager 步骤
-# 或者 nh os test（不切，只编译跑一遍试）
-# 或者 nh os boot（设为下次启动 default）
+nh os switch             # 构建 + 激活
+nh os test               # 构建 + 测试（不激活）
+nh os boot               # 设为下次启动默认
+nh os switch -- -v       # 向 nixos-rebuild 传递 verbose
+nh clean all            # 手动 GC（每周自动 GC 已在 core/nh.nix 配置）
 ```
 
-`nh` 还能：
+### 回滚
 
-```bash
-nh os switch -- -v        # 加 nixos-rebuild 参数
-nh clean all              # 手动跑一次 GC（自动每周一次已在 modules/nixos/core/nh.nix 配好）
-nixos-rebuild list-generations | fzf   # nh 会用 fzf 展示
-```
+GRUB 启动菜单列出最近 10 个 generation（`configurationLimit = 10`），选择较早的 generation 即可回滚。回滚仅作用于 ephemeral root 子卷，`/persist` 下的持久化数据不受影响。
 
-### 回滚到老 generation
+### 修改 niri 配置
 
-GRUB 启动菜单会列最近 10 个 generation（`configurationLimit = 10`），选老的进就行。由于 impermanence 在每次开机时把 root 子卷回滚到 `@root-blank`，**回滚不会影响持久化数据**。
-
-### 改 niri 配置
-
-编辑 `modules/home/niri/default.nix`，`niri` 自带热重载——保存即生效，无需 restart。配置语法错了会在日志报错：
+编辑 `modules/nixos/desktop/niri.nix`。niri 热重载 `config.kdl`，保存即生效。语法错误会输出至日志：
 
 ```bash
 journalctl --user -u niri -f
 ```
 
-键位文档：https://niri-wm.github.io/niri/Configuration:-Introduction
-
-### 改 Mango → niri 后的键位映射对照表
-
-原 mango 的键位已经基本搬过来：
-
-| 原 mango | niri | 说明 |
-|---|---|---|
-| `Super+R` | `Mod+R` reload-config | reload |
-| `Super+M` | `Mod+M` quit | 退出 niri |
-| `Super+Q` | `Mod+Q` close-focus-requested | 关窗口 |
-| `Super+Space` | `Mod+Space` | noctalia launcher |
-| `Super+S` | `Mod+S` | noctalia 控制中心 |
-| `Super+H/J/K/L` | `Mod+H/J/K/L` | 焦点方向 |
-| `Super+Shift+H/J/K/L` | `Mod+Shift+H/J/K/L` | move 窗口 |
-| `Super+1~9` | `Mod+1~9` focus-workspace | 切工作区 |
-| `Super+Shift+1~9` | `Mod+Shift+1~9` move-to-workspace | 搬窗口到工作区 |
-| `Super+F` | `Mod+F` toggle-windowed-fullscreen | 全屏 |
-| `Super+Backslash` | `Mod+Backspace` toggle-window-floating | 浮动 |
-| `Print` | `Print` action.screenshot-screen | 截屏（niri 内置 UI） |
-| `Super,Return` | `Mod+Return` spawn kitty | 终端 |
-| `Super+E` | `Mod+E` spawn kitty -e yazi | 文件管理器 |
+配置参考：https://niri-wm.github.io/niri/Configuration:-Introduction
 
 ## 持久化说明
 
-因为 `/` 是 ephemeral（每次开机回滚）：
+由于 `/` 为 ephemeral（每次开机回滚）：
 
-- **不要**往 `/` 写要长期保留的东西——重启就没了
-- 要持久化的系统状态加到 `modules/nixos/persistence/impermanence.nix` 的 `directories`/`files`
-- 用户级持久化加到同文件 `users.onyx.directories`（如 `Documents`、`Downloads` 已在）
-- 故意**没**把 `~/.config` 全持久化，因为 niri/kitty 配置是 `systemd.tmpfiles` 软链到 nix store 管的
-- Noctalia 的 GUI 设置如果想在重启后保留，在 `users.onyx.directories` 里加一项 `"noctalia"`（即 `.config/noctalia`）
+- 不要在 `/` 下存放需长期保留的数据——重启后会丢失
+- 系统级持久化：添加至 `modules/nixos/persistence/impermanence.nix` 的 `directories` / `files`
+- 用户级持久化：添加至同文件 `users.onyx.directories`（已有 `Documents`、`Downloads` 等）
+- `~/.config` **未**持久化：niri 与 kitty 配置通过 `systemd.tmpfiles` 软链接至 nix store
+- 若需持久化 Noctalia 的 GUI 设置，在 `users.onyx.directories` 中添加 `"noctalia"`
 
 ## 故障排除
 
-### GRUB 看不到 Windows
+### GRUB 未检测到 Windows
 
 ```bash
-efibootmgr                      # 看有没有 Windows Boot Manager 条目
-sudo nix-shell -p os-prober -c os-prober   # 看探测是否正常
+efibootmgr                                # 确认 Windows Boot Manager 条目存在
+sudo nix-shell -p os-prober -c os-prober  # 测试 os-prober 探测
 ```
 
-如果 `os-prober` 输出里找不到 Windows，多半是 Windows 的 ESP 挂不到——检查 `boot.supportedFilesystems = ["btrfs" "ntfs"]` 是否生效。
+若 os-prober 未找到 Windows，检查 NTFS 支持是否生效——确认 `modules/nixos/core/boot.nix` 中 `boot.supportedFilesystems = ["btrfs" "ntfs"]`。
 
-### NVIDIA 不工作
+### NVIDIA 驱动异常
 
 ```bash
-cat /proc/driver/nvidia/version             # 应该看到 570+
-cat /sys/module/nvidia_drm/parameters/modeset   # 应该是 Y
-nvidia-smi                                   # 看 dGPU 状态
+cat /proc/driver/nvidia/version               # 预期 570+
+cat /sys/module/nvidia_drm/parameters/modeset  # 预期 Y
+nvidia-smi                                     # dGPU 状态
 ```
 
-如果 Blackwell 型号 `nvidia-smi` 失败，多半是 open kernel modules 没正确加载。检查 `hardware.nvidia.open = true`（Blackwell 必须开）。
+若 Blackwell GPU 运行 `nvidia-smi` 失败，检查 `nvidia.nix` 中 `hardware.nvidia.open = true`——Blackwell 必须使用 open 内核模块。
 
-### 双系统 disko 擦盘警告
+### disko 擦盘警示（双系统）
 
-disko 的 `--mode destroy,format,mount` 会重写整盘 GPT 分区表，**无法保留 Windows**。两种安全做法：
+disko 的 `--mode destroy,format,mount` 会重写整盘 GPT 分区表，**无法保留同盘 Windows**。两种安全方案：
 
-1. NixOS 装在**另一块物理盘** → 把 `disko.nix` 的 `device` 指向那盘，Windows 不受影响
-2. NixOS 和 Windows **同盘** → 不要用 disko 的 destroy 模式，手动用 `parted` 缩 Windows 分区、建 btrfs 分区，然后填 `fileSystems` 自己，从 `hosts/uontabc/disko.nix` 里删 `disko.devices` 块和 `postDeviceCommands` 回滚脚本（保留回滚脚本时单独验证 partlabel）
+1. **独立物理磁盘**——将 `disko.nix` 的 `device` 指向 NixOS 所在磁盘，Windows 不受影响
+2. **同盘安装**——跳过 disko 的 destroy 模式，手动用 `parted` 缩小 Windows 分区、创建 btrfs 分区，并自行填写 `fileSystems`。从 `disko.nix` 中删除 `disko.devices` 块，并验证 `postDeviceCommands` 回滚脚本与实际分区标签的一致性
 
 ### 首次启动卡在 initrd
 
-btrfs 回滚脚本（`hosts/uontabc/disko.nix` 的 `postDeviceCommands`）依赖 `/dev/disk/by-partlabel/disk-main-btrfs` 这个 partlabel，是 disko 自动生成的。如果你手改过分区标签，验证：
+`hosts/uontabc/disko.nix` 中的回滚脚本依赖分区标签 `disk-main-btrfs`（disko 自动生成）。验证：
 
 ```bash
 ls -l /dev/disk/by-partlabel/ | grep btrfs
@@ -265,48 +505,21 @@ ls -l /dev/disk/by-partlabel/ | grep btrfs
 ### niri 启动失败
 
 ```bash
-journalctl --user -u niri -b   # 看本次启动日志
-niri validate                  # 手动验证配置
+journalctl --user -u niri -b    # 本次启动日志
+niri validate                   # 验证配置语法
 ```
 
-配置文件路径：`~/.config/niri/config.kdl`（由 `systemd.tmpfiles` 软链到 nix store）。
-
-## 推到 GitHub
-
-本仓库在 Windows 上初始化时没装 git。在 WSL 或者装了 Git for Windows 的 PowerShell 里跑：
-
-```bash
-cd C:\Users\onyx\Desktop\mango   # 或 /mnt/c/Users/onyx/Desktop/mango（WSL）
-
-# 1. 初始化本地仓库
-git init
-git add .
-git commit -m "Initial NixOS + niri + noctalia configuration"
-
-# 2. 在 GitHub 网页建一个空仓库（不要勾 README/.gitignore/license）
-
-# 3. 加 remote 并 push
-git branch -M main
-git remote add origin git@github.com:<your-gh-username>/mango.git
-git push -u origin main
-```
-
-或者用 `gh` CLI 一把梭：
-
-```bash
-gh repo create mango --public --source=. --push
-# 想私有就 --private
-```
+配置路径：`~/.config/niri/config.kdl`（由 `systemd.tmpfiles` 软链接至 nix store）。
 
 ## 参考
 
 - [niri 文档](https://niri-wm.github.io/niri/)
 - [Noctalia 文档](https://docs.noctalia.dev)
 - [NixOS & Nix Flakes Book](https://nixos-and-flakes.thiscute.world/)
-- [Disko 文档](https://github.com/nix-community/disko)
-- [Impermanence 文档](https://github.com/nix-community/impermanence)
-- 借鉴了 [ryan4yin/nix-config](https://github.com/ryan4yin/nix-config) 的 niri + noctalia + impermanence 组合与 tuigreet 用法
+- [disko](https://github.com/nix-community/disko)
+- [impermanence](https://github.com/nix-community/impermanence)
+- [ryan4yin/nix-config](https://github.com/ryan4yin/nix-config)——参考其 niri + Noctalia + impermanence 组合
 
-## License
+## 许可证
 
 MIT
