@@ -6,6 +6,7 @@
     ./core/users.nix
     ./core/packages.nix
     ./core/env.nix
+    ./core/nh.nix
 
     ./hardware/cpu-amd.nix
     ./hardware/nvidia.nix
@@ -19,6 +20,8 @@
     ./desktop/fonts.nix
     ./desktop/niri.nix
     ./desktop/noctalia.nix
+    ./desktop/qt.nix
+    ./desktop/kitty.nix
 
     ./persistence/impermanence.nix
   ];

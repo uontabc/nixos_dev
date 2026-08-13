@@ -1,17 +1,18 @@
 # uontabc — NixOS 配置
 
-基于 [Nix Flakes](https://nixos.wiki/wiki/Flakes) + [home-manager](https://github.com/nix-community/home-manager) 的 NixOS 配置，桌面用 [niri](https://github.com/niri-wm/niri) + [Noctalia v5](https://github.com/noctalia-dev/noctalia)，盘用 [disko](https://github.com/nix-community/disko) 声明式分 btrfs，根目录靠 [impermanence](https://github.com/nix-community/impermanence) 做不可变回滚。
+基于 [Nix Flakes](https://nixos.wiki/wiki/Flakes) 的 NixOS 配置（**纯 NixOS modules，不用 home-manager**），桌面用 [niri](https://github.com/niri-wm/niri) + [Noctalia v5](https://github.com/noctalia-dev/noctalia)，盘用 [disko](https://github.com/nix-community/disko) 声明式分 btrfs，根目录靠 [impermanence](https://github.com/nix-community/impermanence) 做不可变回滚，命令交互用 [nh](https://github.com/nix-community/nh)。
 
 ## 特性
 
 - **滚动式平铺合成器** niri，配置走 KDL 热重载
-- **桌面 shell** Noctalia v5 beta（bar/launcher/notification/lock/控制中心一体）
+- **桌面 shell** Noctalia v5 beta（bar/launcher/notification/lock/控制中心一体，systemd 管理）
 - **声明式分盘** disko + btrfs，子卷 `root`/`persist`/`nix`
 - **不可变根** impermanence 持久化关键状态，每次开机把 root 子卷回滚到 `@root-blank` 快照
 - **双系统友好** GRUB + os-prober 自动探测 Windows Boot Manager，ntfs3 支持挂载 Windows 数据盘
 - **滚动 nixpkgs** 跟 `nixos-26.05` stable 分支
 - **硬件驱动** AMD CPU（microcode + amd-pstate）+ NVIDIA RTX 5060 Laptop（Blackwell，open 内核模块 + stable driver）
 - **轻 session** tuigreet 登录到 niri，不写自制 session 脚本
+- **nh** 作为 `nixos-rebuild` 的替代 CLI（带 fzf 选择 generation、自动垃圾回收）
 
 ## 目录结构
 
@@ -22,22 +23,17 @@
 │   ├── default.nix                 #   主机入口
 │   ├── hardware.nix                #   留空（disko 接管 fileSystems）
 │   └── disko.nix                   #   声明式分盘 + btrfs 回滚脚本
-└── modules/
-    ├── nixos/
-    │   ├── default.nix             # 汇总 import
-    │   ├── core/                   #   基础系统：boot/networking/locale/users/packages/env
-    │   ├── hardware/               #   硬件：cpu-amd/nvidia/graphics/bluetooth/input
-    │   ├── desktop/                #   桌面：display(greetd)/portal/audio/fonts/niri/noctalia
-    │   └── persistence/            #   impermanence 持久化
-    └── home/                       # home-manager 用户层
-        ├── base.nix                #   用户名/home/stateVersion
-        ├── default.nix             #   汇总 import
-        ├── shell.nix                #   kitty + yazi
-        ├── qt.nix                  #   qt6ct
-        ├── packages.nix            #   用户级包
-        ├── noctalia.nix            #   programs.noctalia.enable
-        └── niri/default.nix        #   niri KDL 配置（键位/布局/动画）
+└── modules/nixos/                  # 全部用 NixOS 模块（无 home-manager）
+    ├── default.nix                 # 汇总 import
+    ├── core/                       #   基础系统：boot/networking/locale/users/packages/env/nh
+    ├── hardware/                   #   硬件：cpu-amd/nvidia/graphics/bluetooth/input
+    ├── desktop/                    #   桌面：display(greetd)/portal/audio/fonts/niri/noctalia/qt/kitty
+    └── persistence/               #   impermanence 持久化
 ```
+
+用户级配置（niri KDL、kitty.conf、用户包）全部在 `modules/nixos/desktop/*` 和 `modules/nixos/core/users.nix` 里管理：
+- 用户包 → `users.users.onyx.packages`
+- 配置文件 → `pkgs.writeText` 写入 nix store，再用 `systemd.tmpfiles.rules` 软链到 `/home/onyx/.config/...`
 
 ## 硬件假设
 
@@ -164,20 +160,25 @@ rebuild 后想用 dGPU 跑程序：`nvidia-offload <program>`。
 ### 更新整个 flake
 
 ```bash
-nix flake update                           # 更新 flake.lock
-sudo nixos-rebuild switch --flake .#uontabc
+cd ~/nixos               # 假设你把仓库 clone 到这
+nix flake update         # 更新 flake.lock
+nh os switch             # = nixos-rebuild switch（nh 自动从 NH_FLAKE 找 flake）
 ```
 
 ### 只改配置（不更新 flake）
 
 ```bash
-sudo nixos-rebuild switch --flake .#uontabc
+nh os switch             # 全部等都由 NixOS 系统层一处管理，无单独 home-manager 步骤
+# 或者 nh os test（不切，只编译跑一遍试）
+# 或者 nh os boot（设为下次启动 default）
 ```
 
-home-manager 单独切：
+`nh` 还能：
 
 ```bash
-home-manager switch --flake .#onyx@uontabc
+nh os switch -- -v        # 加 nixos-rebuild 参数
+nh clean all              # 手动跑一次 GC（自动每周一次已在 modules/nixos/core/nh.nix 配好）
+nixos-rebuild list-generations | fzf   # nh 会用 fzf 展示
 ```
 
 ### 回滚到老 generation
@@ -222,7 +223,7 @@ journalctl --user -u niri -f
 - **不要**往 `/` 写要长期保留的东西——重启就没了
 - 要持久化的系统状态加到 `modules/nixos/persistence/impermanence.nix` 的 `directories`/`files`
 - 用户级持久化加到同文件 `users.onyx.directories`（如 `Documents`、`Downloads` 已在）
-- 故意**没**把 `~/.config` 全持久化，因为 mango/niri 配置是 home-manager 管的
+- 故意**没**把 `~/.config` 全持久化，因为 niri/kitty 配置是 `systemd.tmpfiles` 软链到 nix store 管的
 - Noctalia 的 GUI 设置如果想在重启后保留，在 `users.onyx.directories` 里加一项 `"noctalia"`（即 `.config/noctalia`）
 
 ## 故障排除
@@ -268,7 +269,7 @@ journalctl --user -u niri -b   # 看本次启动日志
 niri validate                  # 手动验证配置
 ```
 
-配置文件路径：`~/.config/niri/config.kdl`（home-manager 生成）。
+配置文件路径：`~/.config/niri/config.kdl`（由 `systemd.tmpfiles` 软链到 nix store）。
 
 ## 推到 GitHub
 

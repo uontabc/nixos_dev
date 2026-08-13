@@ -34,7 +34,9 @@
         ".ssh"
         ".local/share"
         ".gnupg"
-        # Don't persist ~/.config (home-manager-managed); add subdirs here for hand-tweaked app configs.
+        # ~/.config is NOT persisted: niri/kitty configs are bind-symlinked from the
+# nix store by systemd.tmpfiles (modules/nixos/desktop/*). Add subdirs here
+# only for apps whose config you tweak by hand (and want to survive reboot).
       ];
       allowOther = true;
     };
