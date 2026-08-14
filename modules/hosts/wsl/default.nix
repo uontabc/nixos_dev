@@ -1,21 +1,16 @@
-{ self, ... }: {
+{
   hosts.wsl = {
     system = "x86_64-linux";
     stateVersion = "26.05";
     module =
       { ... }: {
-        # `wsl` (modules/wsl.nix) is auto-attached by the host factory via
-        # `optional (nixos ? ${name}) nixos.${name}` — the module name matches
-        # this hostname. No need to import it here.
+        # base is auto-attached by the host factory (lib/nixos.nix adds
+        # nixos.base to every host) — importing it here again would
+        # double-declare options (e.g. my.name from users.nix).
         #
-        # NOTE: `self.modules.nixos` here is the flake output (flake-parts),
-        # NOT the NixOS config — referencing config in imports would recurse.
-        imports = with self.modules.nixos; [
-          base
-        ];
-
-        # No boot/network/hardware/desktop/impermanence: WSL provides its own
-        # kernel, network and display (WSLg). This is a terminal-only distro.
+        # `wsl` (modules/wsl.nix) is auto-attached the same way, because the
+        # module name matches this hostname (optional (nixos ? ${name}) ...).
+        # So this module only holds host-specific overrides — none needed.
       };
   };
 }
