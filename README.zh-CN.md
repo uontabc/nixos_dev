@@ -415,6 +415,15 @@ echo $NH_FLAKE           # 应输出：/home/onyx/nixos
 nh os info               # 应打印当前系统信息
 ```
 
+若 clone 到了别的目录（如 `~/nixos_dev`），显式指向它即可，无需改名：
+
+```bash
+export NH_OS_FLAKE=/home/onyx/nixos_dev   # 仅对 `nh os` 覆盖 NH_FLAKE
+nh os switch .                             # 或直接传路径，不需要环境变量
+```
+
+（也可以在 `modules/nh.nix` 里按主机改 `programs.nh.flake`——它是 `mkDefault`。）
+
 #### 4.8 通过 nh 应用更新
 
 ```bash

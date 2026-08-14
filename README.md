@@ -414,6 +414,15 @@ echo $NH_FLAKE           # Should print: /home/onyx/nixos
 nh os info               # Should print info about the current system
 ```
 
+If you cloned the repo to a different directory (e.g. `~/nixos_dev`), point nh at it explicitly instead of renaming:
+
+```bash
+export NH_OS_FLAKE=/home/onyx/nixos_dev   # overrides NH_FLAKE for `nh os` only
+nh os switch .                             # or pass the path directly, no env var needed
+```
+
+(You can also set `programs.nh.flake` per-host in `modules/nh.nix` — it is `mkDefault`.)
+
 #### 4.8 Apply updates via nh
 
 ```bash
