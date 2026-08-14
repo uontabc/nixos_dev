@@ -1,5 +1,7 @@
 { inputs, ... }: {
-  flake.modules.nixos.nix = {
+  flake.modules.nixos.nix = { pkgs, ... }: {
+    nix.package = pkgs.lixPackageSets.stable.lix;
+
     nix.registry.nixpkgs.flake = inputs.nixpkgs;
 
     nix.settings = {
