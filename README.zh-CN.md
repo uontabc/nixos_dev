@@ -51,9 +51,12 @@
     │   └── audio.nix  display.nix  portal.nix  noctalia.nix  xwayland.nix
     ├── config/                     #   各应用配置（每个为具名 nixos 模块）
     │   └── i18n.nix  nix.nix  git.nix  fonts.nix  niri.nix  kitty.nix  qt.nix
-    └── hosts/uontabc/
-        ├── default.nix             #   hosts.uontabc = { system, stateVersion, module }
-        └── disko.nix               #   flake.modules.nixos.uontabc.disko.devices
+    ├── wsl.nix                     #   NixOS-WSL 模块（终端型 WSL 发行版）
+    └── hosts/
+        ├── uontabc/
+        │   ├── default.nix         #   hosts.uontabc = { system, stateVersion, module }
+        │   └── disko.nix           #   flake.modules.nixos.uontabc.disko.devices
+        └── wsl/default.nix         #   hosts.wsl（自动挂载 wsl 模块）
 ```
 
 基于 [flake-parts](https://flake.parts) + [import-tree](https://github.com/vic/import-tree)：`modules/` 下的每个 `.nix` 文件自动导入——无需 `default.nix` 汇总。各模块声明 `flake.modules.nixos.<name>`，按名称引用其他模块而非路径。参考 [ocfox/island](https://github.com/ocfox/island)。
@@ -591,6 +594,45 @@ reg add "HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation" /v RealTimeI
 ```
 
 这使 Windows 把硬件时钟视为 UTC，与 NixOS 一致。**不要**在 NixOS 端用 `timedatectl set-local-rtc 1`——systemd 上游不推荐。
+
+## WSL
+
+第二个主机配置 `nixosConfigurations.wsl` 通过 [NixOS-WSL](https://github.com/nix-community/NixOS-WSL) 将本配置作为 **Windows Subsystem for Linux** 发行版运行。它是纯终端环境：复用 `base`（用户 `onyx`、nix、i18n、env、nh、git），但**刻意排除** boot/hardware/desktop/impermanence——WSL 自带内核、网络与显示（WSLg）。
+
+`wsl` 模块（`modules/wsl.nix`）由主机工厂自动挂载到 `wsl` 主机（模块名 == 主机名）。关键设置：
+
+- `wsl.defaultUser = "onyx"`——与 `modules/users.nix` 的主用户一致
+- `wsl.useWindowsDriver = true`——使用 Windows 主机的 OpenGL/Vulkan 驱动（WSLg）
+- `wsl.startMenuLaunchers = true`——Windows 开始菜单的 GUI 快捷方式
+
+### 构建 WSL 压缩包
+
+在任何 NixOS 机器上（或 WSL 发行版内）：
+
+```bash
+nix build .#nixosConfigurations.wsl.config.system.build.tarball -o wsl-result
+# 输出：wsl-result/nixos-wsl.tar.gz
+```
+
+### 安装到 WSL
+
+PowerShell 中：
+
+```powershell
+wsl --install --no-distribution        # 一次性：启用 WSL（如未启用）
+wsl --import NixOS $env:USERPROFILE\NixOS wsl-result\nixos-wsl.tar.gz --version 2
+wsl -d NixOS
+```
+
+首次以 `onyx` 登录，密码 `changeme`（与主主机相同初始密码——立即 `passwd` 修改）。然后拉取 flake 照常用 `nh` 管理。
+
+### 在 WSL 内重建
+
+```bash
+cd ~/nixos
+git clone https://github.com/uontabc/nixos_dev.git .   # 首次
+nh os switch        # 读取 NH_FLAKE；自动识别主机名 "wsl"
+```
 
 ## 参考
 

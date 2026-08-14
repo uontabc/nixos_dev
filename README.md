@@ -51,9 +51,12 @@ Run `disko --mode format,mount` (never `--mode destroy,...`). It is the single s
     │   └── audio.nix  display.nix  portal.nix  noctalia.nix  xwayland.nix
     ├── config/                     #   per-app configs (each a named nixos module)
     │   └── i18n.nix  nix.nix  git.nix  fonts.nix  niri.nix  kitty.nix  qt.nix
-    └── hosts/uontabc/
-        ├── default.nix             #   hosts.uontabc = { system, stateVersion, module }
-        └── disko.nix               #   flake.modules.nixos.uontabc.disko.devices
+    ├── wsl.nix                     #   NixOS-WSL module (terminal-only WSL distro)
+    └── hosts/
+        ├── uontabc/
+        │   ├── default.nix         #   hosts.uontabc = { system, stateVersion, module }
+        │   └── disko.nix           #   flake.modules.nixos.uontabc.disko.devices
+        └── wsl/default.nix         #   hosts.wsl (auto-attaches the wsl module)
 ```
 
 Built with [flake-parts](https://flake.parts) + [import-tree](https://github.com/vic/import-tree): every `.nix` file under `modules/` is auto-imported — no `default.nix` aggregates. Each module declares `flake.modules.nixos.<name>` and references others by name, not by path. Inspired by [ocfox/island](https://github.com/ocfox/island).
@@ -590,6 +593,45 @@ reg add "HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation" /v RealTimeI
 ```
 
 This makes Windows treat the hardware clock as UTC, matching NixOS. Do **not** use `timedatectl set-local-rtc 1` on the NixOS side — it is discouraged by systemd upstream.
+
+## WSL
+
+A second host, `nixosConfigurations.wsl`, runs this configuration as a **Windows Subsystem for Linux** distribution via [NixOS-WSL](https://github.com/nix-community/NixOS-WSL). It is a terminal-only environment: it shares `base` (user `onyx`, nix, i18n, env, nh, git) but deliberately **excludes** boot/hardware/desktop/impermanence — WSL provides its own kernel, network and display (WSLg).
+
+The `wsl` module (`modules/wsl.nix`) is auto-attached to the `wsl` host by the host factory (module name == hostname). Key settings:
+
+- `wsl.defaultUser = "onyx"` — matches the primary user from `modules/users.nix`
+- `wsl.useWindowsDriver = true` — use the Windows host's OpenGL/Vulkan drivers (WSLg)
+- `wsl.startMenuLaunchers = true` — GUI shortcuts in the Windows Start menu
+
+### Build the WSL tarball
+
+On any NixOS machine (or inside the WSL distro itself):
+
+```bash
+nix build .#nixosConfigurations.wsl.config.system.build.tarball -o wsl-result
+# output: wsl-result/nixos-wsl.tar.gz
+```
+
+### Install into WSL
+
+From PowerShell:
+
+```powershell
+wsl --install --no-distribution        # one-time: enable WSL if not already
+wsl --import NixOS $env:USERPROFILE\NixOS wsl-result\nixos-wsl.tar.gz --version 2
+wsl -d NixOS
+```
+
+First login is as `onyx` with password `changeme` (same initial password as the main host — change it with `passwd` right away). Then pull the flake and manage it with `nh` as usual.
+
+### Rebuild inside WSL
+
+```bash
+cd ~/nixos
+git clone https://github.com/uontabc/nixos_dev.git .   # first time
+nh os switch        # reads NH_FLAKE; hostname "wsl" is auto-detected
+```
 
 ## References
 
