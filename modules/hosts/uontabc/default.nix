@@ -13,35 +13,57 @@
         ];
 
         boot.initrd.availableKernelModules = [ "xhci_pci" "nvme" "usb_storage" "sd_mod" ];
+        swapDevices = [ ];
 
-        fileSystems = {
-          "/" = {
-            device = "/dev/disk/by-partlabel/nixos-btrfs";
-            fsType = "btrfs";
-            options = [ "subvol=root" "compress=zstd" "noatime" "ssd" ];
-            neededForBoot = true;
-          };
-          "/boot" = {
+        # disko takes over fileSystems for us — it injects fileSystems.* for the
+        # nixos-esp (vfat) + nixos-btrfs subvolumes (root/persist/nix), all
+        # referenced by the stable by-partlabel paths created during manual
+        # `parted` partitioning (see README "Same-disk dual-boot installation").
+        # Run `disko --mode format,mount --flake .#uontabc` once after manual
+        # parted; disko is idempotent (skips mkfs when blkid sees an existing
+        # filesystem, skips btrfs subvolume create when one already exists).
+        # destroy = false on every disk block — we never want disko to wipe
+        # partitions, even if someone accidentally runs `--mode destroy,...`.
+        disko.devices.disk = {
+          nixos-esp = {
+            type = "disk";
             device = "/dev/disk/by-partlabel/nixos-esp";
-            fsType = "vfat";
-            options = [ "umask=0077" "defaults" ];
+            destroy = false;
+            content = {
+              type = "filesystem";
+              format = "vfat";
+              mountpoint = "/boot";
+              mountOptions = [ "umask=0077" "defaults" ];
+            };
           };
-          "/nix" = {
+          nixos-btrfs = {
+            type = "disk";
             device = "/dev/disk/by-partlabel/nixos-btrfs";
-            fsType = "btrfs";
-            options = [ "subvol=nix" "compress=zstd" "noatime" "ssd" ];
-            neededForBoot = true;
-          };
-          "/persist" = {
-            device = "/dev/disk/by-partlabel/nixos-btrfs";
-            fsType = "btrfs";
-            options = [ "subvol=persist" "compress=zstd" "noatime" "ssd" ];
-            neededForBoot = true;
+            destroy = false;
+            content = {
+              type = "btrfs";
+              extraArgs = [ "-L" "nixos" ];
+              subvolumes = {
+                "root" = {
+                  mountpoint = "/";
+                  mountOptions = [ "compress=zstd" "noatime" "ssd" ];
+                };
+                "nix" = {
+                  mountpoint = "/nix";
+                  mountOptions = [ "compress=zstd" "noatime" "ssd" ];
+                };
+                "persist" = {
+                  mountpoint = "/persist";
+                  mountOptions = [ "compress=zstd" "noatime" "ssd" ];
+                };
+              };
+            };
           };
         };
 
-        swapDevices = [ ];
-
+        # btrfs subvolume rollback — mount toplevel (subvolid=5), then either
+        # seed @root-blank (first boot) or roll root back to @root-blank.
+        # Still keyed on the same by-partlabel disko uses, so no surprises.
         boot.initrd.postDeviceCommands = lib.mkAfter ''
           mkdir -p /btrfs-tl
           mount -t btrfs -o subvolid=5 /dev/disk/by-partlabel/nixos-btrfs /btrfs-tl

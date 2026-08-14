@@ -15,9 +15,16 @@
 - **登录** tuigreet 直接启动 niri 会话，无自制脚本
 - **nh** 替代 `nixos-rebuild`，支持 fzf 选择 generation 及每周自动 GC
 
-## 为何分区准备是手动的（不是 disko）
+## disko 如何与同盘双系统共存
 
-早期版本曾用 [disko](https://github.com/nix-community/disko) 做声明式分盘。disko 的 disk 模块调用 `parted mklabel gpt`，这会重写整盘 GPT 表——销毁包括 Windows 在内的所有既有分区。同盘双系统下不可接受，故完全弃用 disko。本配置直接声明 `fileSystems`，按 `by-partlabel` 引用分区，`parted` 由用户显式设 partlabel。回滚脚本与 GRUB 完全与分区表无关。
+[disko](https://github.com/nix-community/disko) 负责声明式**文件系统**层（mkfs + btrfs 子卷 + 挂载），但**分区表仍由 `parted` 手动创建**。这样划分是有意的：disko 的 `gpt` content type 在设备识别不到分区表时会调 `sgdisk --clear`，但对已有 Windows 分区的磁盘用 `sgdisk --new` 重建分区有分区号冲突和丢数据风险。所以：
+
+1. 在空闲空间里用 `parted` 手动建两个 NixOS 分区（`nixos-esp`、`nixos-btrfs`），Windows 分区号不动。
+2. disko 的 `disko.devices.<name>` 块指向**已存在的分区**（`device = "/dev/disk/by-partlabel/..."`），`content.type` 是 `"filesystem"` / `"btrfs"`——disko 只跑 `mkfs` 与 `btrfs subvolume create`，二者**幂等**（`blkid`/`btrfs subvolume show` 检测到已有则跳过）。
+3. 每个 disko disk 块都设 `destroy = false`，即便误跑 `--mode destroy,...` 也不会擦这些分区。
+4. disko 从设备声明**自动注入 `fileSystems.*`**——仓库无需手写 `fileSystems`，但 `boot.initrd.postDeviceCommands`（回滚脚本）仍留在 `modules/hosts/uontabc/default.nix` 里，引用同一个 `by-partlabel/nixos-btrfs` 路径。
+
+跑 `disko --mode format,mount`（永不要 `--mode destroy,...`）。它一步替代 mkfs + 子卷创建 + 挂载，且安全可重跑。
 
 ## 目录结构
 
@@ -228,50 +235,20 @@ ls -l /dev/disk/by-partlabel/
 # 预期：nixos-esp -> ../../nvme0n1p4，nixos-btrfs -> ../../nvme0n1p5
 ```
 
-#### 2.4 创建文件系统
+#### 2.4 跑 disko（format + mount）
+
+分区就位后交给 disko。disko **幂等**——`blkid` 检测已有文件系统就跳过 `mkfs`；`btrfs subvolume show` 检测已存在子卷就跳过创建。所以重跑也不会破坏任何东西。disko 还会**自动把 `fileSystems.*` 注入 NixOS 配置**——仓库里无需手写 `fileSystems`。
 
 ```bash
-# NixOS ESP（fat32）
-mkfs.fat -F32 -n NIXOS-ESP /dev/disk/by-partlabel/nixos-esp
-
-# NixOS btrfs
-mkfs.btrfs -L nixos /dev/disk/by-partlabel/nixos-btrfs
+sudo nix run github:nix-community/disko -- \
+  --mode format,mount --flake .#uontabc
 ```
 
-#### 2.5 创建 btrfs 子卷
-
-挂到 toplevel（`subvolid=5`），建三个子卷：
-
-```bash
-mkdir -p /mnt
-mount /dev/disk/by-partlabel/nixos-btrfs /mnt
-
-btrfs subvolume create /mnt/root
-btrfs subvolume create /mnt/persist
-btrfs subvolume create /mnt/nix
-
-# 为回滚种 @root-blank；下次开机回滚脚本检测"已存在"即可触发正向路径，
-# 同时验证 btrfs 子卷工具链可用。
-btrfs subvolume snapshot /mnt/root /mnt/@root-blank
-
-umount /mnt
-```
-
-### 阶段三——安装
-
-#### 3.1 把分区挂到 /mnt
-
-挂载参数与 `hardware.nix` 最终声明一致（compress=zstd、noatime、ssd），使运行时与安装时一致：
-
-```bash
-mount -o subvol=root,compress=zstd,noatime,ssd /dev/disk/by-partlabel/nixos-btrfs /mnt
-
-mkdir -p /mnt/{boot,nix,persist}
-
-mount /dev/disk/by-partlabel/nixos-esp /mnt/boot
-mount -o subvol=nix,compress=zstd,noatime,ssd /dev/disk/by-partlabel/nixos-btrfs /mnt/nix
-mount -o subvol=persist,compress=zstd,noatime,ssd /dev/disk/by-partlabel/nixos-btrfs /mnt/persist
-```
+这将：
+1. `mkfs.fat` 格式化 `nixos-esp`（已是 fat32 则跳过）。
+2. `mkfs.btrfs` 格式化 `nixos-btrfs`（已是 btrfs 则跳过）。
+3. 创建 btrfs 子卷 `root`、`nix`、`persist`（已存在则跳过）。
+4. 全部挂载到 `/mnt` 下：`/mnt`（subvol=root）、`/mnt/boot`（vfat）、`/mnt/nix`（subvol=nix）、`/mnt/persist`（subvol=persist）。
 
 验证：
 
@@ -283,7 +260,11 @@ mount | grep /mnt
 df -h /mnt /mnt/boot /mnt/nix /mnt/persist
 ```
 
-#### 3.2 克隆仓库
+> **注意**：disko 只对你指定的分区操作（`/dev/disk/by-partlabel/nixos-*`），**完全不碰** Windows 分区。`modules/hosts/uontabc/default.nix` 中每个 disko disk 块都设了 `destroy = false`，即使有人误跑 `--mode destroy,...`，disko 也不会擦除已配置的分区。
+
+### 阶段三——安装
+
+#### 3.1 克隆仓库
 
 ```bash
 cd /tmp
@@ -305,7 +286,7 @@ nix flake show
 # 应列出：nixosConfigurations.uontabc
 ```
 
-#### 3.3（可选演练）Dry-evaluate 系统
+#### 3.2（可选演练）Dry-evaluate 系统
 
 若你调整过任何模块，先只求值不激活：
 
@@ -313,7 +294,7 @@ nix flake show
 nix build .#nixosConfigurations.uontabc.config.system.build.toplevel --dry-run
 ```
 
-#### 3.4 安装 NixOS
+#### 3.3 安装 NixOS
 
 ```bash
 sudo nixos-install --flake .#uontabc --root /mnt

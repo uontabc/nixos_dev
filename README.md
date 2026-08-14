@@ -15,9 +15,16 @@ A declarative NixOS desktop configuration built entirely on NixOS modules (no ho
 - **Login** — tuigreet launches the niri session directly; no custom session scripts
 - **nh** — replaces `nixos-rebuild` with fzf-based generation selection and automatic weekly garbage collection
 
-## Why disk preparation is manual (not disko)
+## How disko coexists with same-disk dual-boot
 
-An earlier version used [disko](https://github.com/nix-community/disko) for declarative partitioning. disko's disk module calls `parted mklabel gpt`, which rewrites the entire GPT — destroying every existing partition including Windows. For a same-disk dual-boot setup, this is unacceptable, so disko was dropped entirely. This configuration instead declares `fileSystems` directly and references partitions by `by-partlabel`, which `parted` sets explicitly. The rollback script and GRUB are entirely partition-table-agnostic.
+[disko](https://github.com/nix-community/disko) is used for declarative **filesystem** setup (mkfs + btrfs subvolumes + mounts), but the **partition table is created manually** with `parted`. This split is deliberate: disko's `gpt` content type runs `sgdisk --clear` when the disk has no recognizable partition table, but using `sgdisk --new` to recreate partitions on a disk that already has Windows partitions risks partition-number collisions and data loss. Instead:
+
+1. You create the two NixOS partitions (`nixos-esp`, `nixos-btrfs`) with `parted` in the free space — Windows partitions stay at their existing numbers.
+2. disko's `disk.devices.<name>` blocks point at **existing partitions** (`device = "/dev/disk/by-partlabel/..."`) with `content.type = "filesystem"` / `"btrfs"` — disko only runs `mkfs` and `btrfs subvolume create`, which are **idempotent** (skipped if `blkid`/`btrfs subvolume show` detects an existing fs/subvolume).
+3. Every disko disk block has `destroy = false`, so even `--mode destroy,...` refuses to wipe those partitions.
+4. disko **auto-injects `fileSystems.*`** into the NixOS config from its own device declarations — no manual `fileSystems` in the repo, but `boot.initrd.postDeviceCommands` (the rollback script) stays in `modules/hosts/uontabc/default.nix` and references the same `by-partlabel/nixos-btrfs` path.
+
+Run `disko --mode format,mount` (never `--mode destroy,...`). It is the single step that replaces mkfs + subvolume create + mount, and it is safe to re-run.
 
 ## Directory Structure
 
@@ -226,51 +233,20 @@ ls -l /dev/disk/by-partlabel/
 # Expect: nixos-esp -> ../../nvme0n1p4, nixos-btrfs -> ../../nvme0n1p5
 ```
 
-#### 2.4 Create file systems
+#### 2.4 Run disko (format + mount)
+
+With the partitions in place, disko takes over. It is **idempotent** — `blkid` detects any existing filesystem and skips `mkfs`; `btrfs subvolume show` detects any existing subvolume and skips create. So even on a re-run nothing gets destroyed. disko also **injects `fileSystems.*` into the NixOS config automatically** — no manual `fileSystems` declarations in the repo.
 
 ```bash
-# NixOS ESP (fat32)
-mkfs.fat -F32 -n NIXOS-ESP /dev/disk/by-partlabel/nixos-esp
-
-# NixOS btrfs
-mkfs.btrfs -L nixos /dev/disk/by-partlabel/nixos-btrfs
+sudo nix run github:nix-community/disko -- \
+  --mode format,mount --flake .#uontabc
 ```
 
-#### 2.5 Create btrfs subvolumes
-
-Mount the new btrfs partition at its toplevel (`subvolid=5`) and create three subvolumes:
-
-```bash
-mkdir -p /mnt
-mount /dev/disk/by-partlabel/nixos-btrfs /mnt
-
-btrfs subvolume create /mnt/root
-btrfs subvolume create /mnt/persist
-btrfs subvolume create /mnt/nix
-
-# snapshot root as the rollback baseline; rollback deletes+re-snapshots this,
-# but seeding it now lets the first boot detect "already exists" and validates
-# that btrfs tooling works on this disk.
-btrfs subvolume snapshot /mnt/root /mnt/@root-blank
-
-umount /mnt
-```
-
-### Phase 3 — Installation
-
-#### 3.1 Mount the partitions under /mnt
-
-The mount options mirror what `hardware.nix` will eventually declare (compress=zstd, noatime, ssd) so that runtime behaviour matches the install-time behaviour:
-
-```bash
-mount -o subvol=root,compress=zstd,noatime,ssd /dev/disk/by-partlabel/nixos-btrfs /mnt
-
-mkdir -p /mnt/{boot,nix,persist}
-
-mount /dev/disk/by-partlabel/nixos-esp /mnt/boot
-mount -o subvol=nix,compress=zstd,noatime,ssd /dev/disk/by-partlabel/nixos-btrfs /mnt/nix
-mount -o subvol=persist,compress=zstd,noatime,ssd /dev/disk/by-partlabel/nixos-btrfs /mnt/persist
-```
+This:
+1. `mkfs.fat` the `nixos-esp` partition (skipped if already fat32).
+2. `mkfs.btrfs` the `nixos-btrfs` partition (skipped if already btrfs).
+3. Creates btrfs subvolumes `root`, `nix`, `persist` (each skipped if already present).
+4. Mounts everything under `/mnt`: `/mnt` (subvol=root), `/mnt/boot` (vfat), `/mnt/nix` (subvol=nix), `/mnt/persist` (subvol=persist).
 
 Verify:
 
@@ -282,7 +258,11 @@ mount | grep /mnt
 df -h /mnt /mnt/boot /mnt/nix /mnt/persist
 ```
 
-#### 3.2 Clone the repository
+> **Note**: disko only targets the partitions you point it at (`/dev/disk/by-partlabel/nixos-*`). It does **not** touch Windows partitions. Every disko disk block in `modules/hosts/uontabc/default.nix` has `destroy = false`, so even if someone accidentally runs `--mode destroy,...`, disko refuses to wipe the configured partitions.
+
+### Phase 3 — Installation
+
+#### 3.1 Clone the repository
 
 ```bash
 cd /tmp
@@ -304,7 +284,7 @@ nix flake show
 # Should list: nixosConfigurations.uontabc
 ```
 
-#### 3.3 (Optional sanity check) Dry-evaluate the system
+#### 3.2 (Optional sanity check) Dry-evaluate the system
 
 If you've adjusted any modules, evaluate the configuration without activating:
 
@@ -312,7 +292,7 @@ If you've adjusted any modules, evaluate the configuration without activating:
 nix build .#nixosConfigurations.uontabc.config.system.build.toplevel --dry-run
 ```
 
-#### 3.4 Install NixOS
+#### 3.3 Install NixOS
 
 ```bash
 sudo nixos-install --flake .#uontabc --root /mnt
