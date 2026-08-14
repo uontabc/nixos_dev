@@ -25,6 +25,7 @@ in
             nixos = config.flake.modules.nixos;
           in
           [
+            inputs.nixvim.nixosModules.nixvim
             host.module
             nixos.base
             { system.stateVersion = host.stateVersion; }
