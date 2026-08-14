@@ -13,6 +13,9 @@
         style = "bold bright-blue"
         format = "[$path]($style)"
 
+        [directory.substitutions]
+        "~" = ""
+
         [git_branch]
         symbol = "|"
         style = "bold purple"
