@@ -2,7 +2,7 @@
 
 **语言：** [English](README.md) · 中文（当前）
 
-完全基于 NixOS 模块（不使用 home-manager）的声明式桌面配置。flake 由 [flake-parts](https://github.com/hercules-ci/flake-parts) 组织。合成器采用 [niri](https://github.com/niri-wm/niri)（滚动式平铺），桌面 shell 采用 [Noctalia v5](https://github.com/noctalia-dev/noctalia)，持久化由 [impermanence](https://github.com/nix-community/impermanence) 配合 btrfs 快照回滚实现，日常维护命令使用 [nh](https://github.com/nix-community/nh)。目标主机为 **Windows + NixOS 同盘共存**——磁盘准备走手动 `parted`；`fileSystems` 与回滚脚本通过稳定的 *partlabel*（`nixos-esp`、`nixos-btrfs`）引用分区。
+完全基于 NixOS 模块（不使用 home-manager）的声明式桌面配置。flake 由 [flake-parts](https://github.com/hercules-ci/flake-parts) 组织。合成器采用 [niri](https://github.com/niri-wm/niri)（滚动式平铺），桌面 shell 采用 [Noctalia v5](https://github.com/noctalia-dev/noctalia)，持久化由 [impermanence](https://github.com/nix-community/impermanence) 配合 btrfs 快照回滚实现，日常维护命令使用 [nh](https://github.com/nix-community/nh)。目标主机为 **Windows + NixOS 同盘共存**——磁盘准备走手动 `cfdisk`；`fileSystems` 与回滚脚本通过稳定的 *partlabel*（`nixos-esp`、`nixos-btrfs`）引用分区。
 
 ## 特性概览
 
@@ -17,9 +17,9 @@
 
 ## disko 如何与同盘双系统共存
 
-[disko](https://github.com/nix-community/disko) 负责声明式**文件系统**层（mkfs + btrfs 子卷 + 挂载），但**分区表仍由 `parted` 手动创建**。这样划分是有意的：disko 的 `gpt` content type 在设备识别不到分区表时会调 `sgdisk --clear`，但对已有 Windows 分区的磁盘用 `sgdisk --new` 重建分区有分区号冲突和丢数据风险。所以：
+[disko](https://github.com/nix-community/disko) 负责声明式**文件系统**层（mkfs + btrfs 子卷 + 挂载），但**分区表仍由 `cfdisk` 手动创建**。这样划分是有意的：disko 的 `gpt` content type 在设备识别不到分区表时会调 `sgdisk --clear`，但对已有 Windows 分区的磁盘用 `sgdisk --new` 重建分区有分区号冲突和丢数据风险。所以：
 
-1. 在空闲空间里用 `parted` 手动建两个 NixOS 分区（`nixos-esp`、`nixos-btrfs`），Windows 分区号不动。
+1. 在空闲空间里用 `cfdisk` 手动建两个 NixOS 分区（`nixos-esp`、`nixos-btrfs`），Windows 分区号不动。
 2. disko 的 `disko.devices.<name>` 块指向**已存在的分区**（`device = "/dev/disk/by-partlabel/..."`），`content.type` 是 `"filesystem"` / `"btrfs"`——disko 只跑 `mkfs` 与 `btrfs subvolume create`，二者**幂等**（`blkid`/`btrfs subvolume show` 检测到已有则跳过）。
 3. 每个 disko disk 块都设 `destroy = false`，即便误跑 `--mode destroy,...` 也不会擦这些分区。
 4. disko 从设备声明**自动注入 `fileSystems.*`**——仓库无需手写 `fileSystems`，但 `boot.initrd.postDeviceCommands`（回滚脚本）仍留在 `modules/hosts/uontabc/default.nix` 里，引用同一个 `by-partlabel/nixos-btrfs` 路径。
@@ -73,11 +73,13 @@
 | 内屏 | eDP-1，2560×1600 @ 240 Hz | `modules/config/niri.nix` 的 `output` 节点 |
 | 外屏 | DP-1，2560×1440 @ 210 Hz | 同上 |
 | 目标磁盘 | 单 NVMe，Windows + NixOS 共存 | `modules/hosts/uontabc/default.nix`（`fileSystems`） |
-| NixOS 分区大小 | 512 GB | 由你 `parted mkpart` 时确定 |
+| NixOS 分区大小 | 512 GB | 由你 `cfdisk` 时确定 |
 
 ## 目标分区布局
 
-安装前需用 `parted` 在 `/dev/nvme0n1` 上建好以下布局：
+**NixOS 使用自己独立的 ESP**——不与 Windows 共用。Windows 保留自己的 ~100 MB ESP（`nvme0n1p1`）不动；NixOS 用全新的 1 GB ESP（`nixos-esp`）放 GRUB，两个系统的引导文件互不干扰。
+
+安装前需用 `sgdisk` 在 `/dev/nvme0n1` 上建好以下布局：
 
 | 分区 | Name (partlabel) | 类型 | 大小 | fsType | 挂载 |
 |---|---|---|---|---|---|
@@ -87,7 +89,7 @@
 | `nvme0n1p4` | **`nixos-esp`** | `EF00` (ESP) | 1 GB | fat32 | `/boot` |
 | `nvme0n1p5` | **`nixos-btrfs`** | Linux fs | 511 GB | btrfs | `/`、`/nix`、`/persist`（按子卷） |
 
-partlabel 名 `nixos-esp` 与 `nixos-btrfs` **至关重要**——`hardware.nix` 按名字挂载，回滚脚本打开 `by-partlabel/nixos-btrfs`。忘设将无法启动。
+表中分区号假设 Windows 占 `p1–p3`；`sgdisk -n 0` 会自动选择下一个可用分区号，实际编号可能不同。partlabel 名 `nixos-esp` 与 `nixos-btrfs` **至关重要**——`disko.nix` 按名字挂载，回滚脚本打开 `by-partlabel/nixos-btrfs`。忘设将无法启动。
 
 ## 前置条件
 
@@ -100,7 +102,7 @@ partlabel 名 `nixos-esp` 与 `nixos-btrfs` **至关重要**——`hardware.nix`
    # 与 nixos.org/download 公布的哈希对照
    ```
 
-4. **磁盘数据备份**。虽然本指南保守对待 Windows，但 `parted` 误操作仍能毁分区——贵重的 Windows 文件先备份到外置盘。
+4. **磁盘数据备份**。虽然本指南保守对待 Windows，但分区工具误操作仍能毁分区——贵重的 Windows 文件先备份到外置盘。
 5. **Windows 允许缩卷**。C: 启用了 BitLocker 时必须先在 Windows 内挂起保护（或在 live USB 上 `ntfsfix` + `ntfsresize`）。
 6. **Windows 卷当前至少有 512 GB 未用空间**。不足则更激进地缩，或参考"故障排除"中的"无回滚"绕过方案。
 
@@ -171,13 +173,15 @@ timedatectl status
 
 ### 阶段二——在释放出的空间里分区
 
-本阶段只在 512 GB 未分配空间里创建分区。**其余分区完全不动**。每条命令**再三确认**——`parted` 不再问第二次。
+本阶段只在 512 GB 未分配空间里创建分区。**其余分区完全不动**。写入前**再三确认**。
 
 #### 2.1 进入支持 flake 的 shell
 
 ```bash
-nix-shell -p git vim parted btrfs-progs dosfstools --command bash
+nix-shell -p git vim btrfs-progs --command bash
 ```
+
+（`cfdisk` 属于 util-linux，live ISO 自带，无需安装；`dosfstools` 由 disko 自己的脚本在格式化 ESP 时引入。）
 
 #### 2.2 克隆仓库（disko 需要 flake）
 
@@ -201,63 +205,44 @@ nix flake show
 # 应列出：nixosConfigurations.uontabc
 ```
 
-#### 2.3 确认目标磁盘与空闲空间
+#### 2.3 用 cfdisk 创建两个 NixOS 分区
+
+打开交互式分区编辑器：
+
+```bash
+sudo cfdisk /dev/nvme0n1
+```
+
+若提示选择标签类型，选 **gpt**（磁盘已有 GPT 表则保持不动）。用方向键移动、回车/空格确认：
+
+1. 移到 **Free space** → **New** → 大小 **1G** → 类型 **EFI System**。这就是 `nixos-esp`。
+2. 移到剩下的 **Free space** → **New** → 大小保持默认（磁盘剩余全部）→ 类型 **Linux filesystem**。这就是 `nixos-btrfs`。
+3. 选中新建的 1G 分区 → **Rename** → 输入 **nixos-esp**（此处写入的 GPT 分区名即 partlabel）。
+4. 选中新建的 btrfs 分区 → **Rename** → 输入 **nixos-btrfs**。
+5. 选 **Write** → 确认 `yes` → **Quit**。
+
+> cfdisk 的 *Rename* 写入的是 GPT 分区名，udev 会把它暴露为 `/dev/disk/by-partlabel/<名字>`。两个分区**都必须改名**——挂载配置与回滚脚本依赖 `nixos-esp` 和 `nixos-btrfs` 这两个精确的 partlabel。
+
+让内核重读分区表（cfdisk 通常已自动完成，下面命令是无害的兜底）：
+
+```bash
+sudo partprobe /dev/nvme0n1
+sudo udevadm settle
+```
+
+#### 2.4 验证 partlabel
+
+```bash
+ls -l /dev/disk/by-partlabel/
+# 预期：nixos-esp -> ../../nvme0n1p4（实际编号可能不同）
+#       nixos-btrfs -> ../../nvme0n1p5
+```
+
+同时确认 Windows 分区未被改动：
 
 ```bash
 lsblk
-# 确认 NVMe 是 /dev/nvme0n1，Windows 分区是 nvme0n1p3
-
-# 用 MiB 单位打印空闲空间映射
-parted /dev/nvme0n1 unit MiB print free
-```
-
-输出末尾类似：
-
-```
-Number  Start    End      Size     Type      File system  Flags
- 1      0.02MiB  100MiB   100MiB   primary   fat32        boot, esp
- 2      100MiB   116MiB   16MiB    primary   ntfs         msftdata
- 3      116MiB   950GiB   950GiB   primary   ntfs         msftdata
-        950GiB   1462GiB  512GiB   Free Space
-```
-
-记下 Free Space 的 Start（MiB）与磁盘总 End，分别叫 `$FREE_START_MIB` 与 `$DISK_END_MIB`。上例为 `971776` MiB（= 950 × 1024）与 `1497088` MiB（= 1462 × 1024）。实际数字按你的磁盘算。
-
-#### 2.4 创建 NixOS ESP 与 btrfs 分区
-
-先算 ESP 末尾（ESP = 1024 MiB）：
-
-```bash
-ESP_START=971776                       # 你的 $FREE_START_MIB
-ESP_END=$((ESP_START + 1024))          # ESP_END = ESP_START + 1024 MiB
-DISK_END=1497088                       # 你的 $DISK_END_MIB
-```
-
-用显式 **partlabel** 创建分区：
-
-```bash
-parted ---pretend-input-tty /dev/nvme0n1 <<EOF
-unit MiB
-mkpart "nixos-esp" fat32 $ESP_START $ESP_END
-set ${num_esp} esp on
-mkpart "nixos-btrfs" btrfs $ESP_END $DISK_END
-print
-quit
-EOF
-```
-
-**注意**：`${num_esp}` 是刚创建的 ESP 的分区号。 parted 在每条命令后打印分区表，读出实际编号（通常是 `4`）替换之。需要时单独跑：
-
-```bash
-parted /dev/nvme0n1 set 4 esp on
-```
-
-确认 partlabel 已写入：
-
-```bash
-parted /dev/nvme0n1 print
-ls -l /dev/disk/by-partlabel/
-# 预期：nixos-esp -> ../../nvme0n1p4，nixos-btrfs -> ../../nvme0n1p5
+# Windows 的 p1/p2/p3 仍在，外加 nixos-esp 和 nixos-btrfs
 ```
 
 #### 2.5 跑 disko（format + mount）
@@ -510,13 +495,13 @@ sudo efibootmgr --create --disk /dev/nvme0n1 --part 1 \
 
 然后再 `os-prober` → `nh os switch`。
 
-### parted 抱怨 Windows 休眠中无法缩卷
+### Windows 休眠中无法缩卷
 
 Windows 的"快速启动"是一种半休眠。在 Windows 内关闭：*控制面板 → 电源选项 → 选择电源按钮的功能 → 取消勾选"启用快速启动"*。然后**完全关机**（不是重启）。
 
 ### 缩卷后 BitLocker 把我锁外了
 
-若 parted 操作后 Windows 启动要求 BitLocker 恢复密钥——你 BitLocker 没挂起就改了分区。**事前**从 Windows 内挂起（见 1.1 第 2 步）。当前恢复：用恢复密钥启动 Windows，登录，挂起 BitLocker，如果还有未建的分区就再跑 parted。
+若改分区后 Windows 启动要求 BitLocker 恢复密钥——你 BitLocker 没挂起就改了分区。**事前**从 Windows 内挂起（见 1.1 第 2 步）。当前恢复：用恢复密钥启动 Windows，登录，挂起 BitLocker，如果还有未建的分区就再改一次分区。
 
 ### `nixos-install` 报 `/mnt` 无空间
 
@@ -539,7 +524,7 @@ nvidia-smi                                     # dGPU 状态
 
 ### disko 擦盘警示（双系统——历史）
 
-早期 README 用 `disko --mode destroy,format,mount`，会擦 Windows。该模式已彻底删除。如果你看到旧版 README 提到 disko，忽略——当前布局是手动 `parted` + `fileSystems`，正是为了支持同盘双系统。
+早期 README 用 `disko --mode destroy,format,mount`，会擦 Windows。该模式已彻底删除。如果你看到旧版 README 提到 disko，忽略——当前布局是手动 `cfdisk` + disko `formatMount`，正是为了支持同盘双系统。
 
 ### 在混合架构笔记本上启用 PRIME offload（不适用于 8940HX）
 
@@ -580,7 +565,7 @@ ls -l /dev/disk/by-partlabel/ | grep nixos
 # 预期：nixos-esp 与 nixos-btrfs
 ```
 
-若缺失，parted 里忘设 name 了。再进 live USB 补设：
+若缺失，cfdisk 里忘改名了。再进 live USB 重开 `cfdisk` 把两个分区改名（或用非交互命令补设）：
 
 ```bash
 parted /dev/nvme0n1 name 4 nixos-esp

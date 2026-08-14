@@ -2,7 +2,7 @@
 
 **Languages:** English (current) · [中文](README.zh-CN.md)
 
-A declarative NixOS desktop configuration built entirely on NixOS modules (no home-manager). The flake is structured with [flake-parts](https://github.com/hercules-ci/flake-parts). It pairs the [niri](https://github.com/niri-wm/niri) scrollable-tiling compositor with [Noctalia v5](https://github.com/noctalia-dev/noctalia) for the shell layer, [impermanence](https://github.com/nix-community/impermanence) for an ephemeral root with snapshot-based rollback, and [nh](https://github.com/nix-community/nh) for maintenance. The target host runs Windows + NixOS on the **same physical disk** — disk preparation is manual `parted`; `fileSystems` and the rollback script reference partitions by a stable *partlabel* (`nixos-esp`, `nixos-btrfs`).
+A declarative NixOS desktop configuration built entirely on NixOS modules (no home-manager). The flake is structured with [flake-parts](https://github.com/hercules-ci/flake-parts). It pairs the [niri](https://github.com/niri-wm/niri) scrollable-tiling compositor with [Noctalia v5](https://github.com/noctalia-dev/noctalia) for the shell layer, [impermanence](https://github.com/nix-community/impermanence) for an ephemeral root with snapshot-based rollback, and [nh](https://github.com/nix-community/nh) for maintenance. The target host runs Windows + NixOS on the **same physical disk** — disk preparation is manual `cfdisk`; `fileSystems` and the rollback script reference partitions by a stable *partlabel* (`nixos-esp`, `nixos-btrfs`).
 
 ## Features
 
@@ -17,9 +17,9 @@ A declarative NixOS desktop configuration built entirely on NixOS modules (no ho
 
 ## How disko coexists with same-disk dual-boot
 
-[disko](https://github.com/nix-community/disko) is used for declarative **filesystem** setup (mkfs + btrfs subvolumes + mounts), but the **partition table is created manually** with `parted`. This split is deliberate: disko's `gpt` content type runs `sgdisk --clear` when the disk has no recognizable partition table, but using `sgdisk --new` to recreate partitions on a disk that already has Windows partitions risks partition-number collisions and data loss. Instead:
+[disko](https://github.com/nix-community/disko) is used for declarative **filesystem** setup (mkfs + btrfs subvolumes + mounts), but the **partition table is created manually** with `cfdisk`. This split is deliberate: disko's `gpt` content type runs `sgdisk --clear` when the disk has no recognizable partition table, but using `sgdisk --new` to recreate partitions on a disk that already has Windows partitions risks partition-number collisions and data loss. Instead:
 
-1. You create the two NixOS partitions (`nixos-esp`, `nixos-btrfs`) with `parted` in the free space — Windows partitions stay at their existing numbers.
+1. You create the two NixOS partitions (`nixos-esp`, `nixos-btrfs`) with `cfdisk` in the free space — Windows partitions stay at their existing numbers.
 2. disko's `disk.devices.<name>` blocks point at **existing partitions** (`device = "/dev/disk/by-partlabel/..."`) with `content.type = "filesystem"` / `"btrfs"` — disko only runs `mkfs` and `btrfs subvolume create`, which are **idempotent** (skipped if `blkid`/`btrfs subvolume show` detects an existing fs/subvolume).
 3. Every disko disk block has `destroy = false`, so even `--mode destroy,...` refuses to wipe those partitions.
 4. disko **auto-injects `fileSystems.*`** into the NixOS config from its own device declarations — no manual `fileSystems` in the repo, but `boot.initrd.postDeviceCommands` (the rollback script) stays in `modules/hosts/uontabc/default.nix` and references the same `by-partlabel/nixos-btrfs` path.
@@ -73,11 +73,13 @@ User-level configuration is managed entirely within NixOS modules:
 | Internal display | eDP-1, 2560×1600 @ 240 Hz | `modules/config/niri.nix` `output` block |
 | External display | DP-1, 2560×1440 @ 210 Hz | same |
 | Target disk | Single NVMe, Windows + NixOS coexisting | `modules/hosts/uontabc/default.nix` (`fileSystems`) |
-| NixOS partition size | 512 GB | determined by your `parted mkpart` step |
+| NixOS partition size | 512 GB | determined by your `sgdisk` step |
 
 ## Target Partition Layout
 
-You will build this layout with `parted` on `/dev/nvme0n1` before installing:
+**NixOS gets its own dedicated ESP** — it is *not* shared with Windows. Windows keeps its own `~100 MB` ESP (`nvme0n1p1`) untouched; NixOS uses a fresh 1 GB ESP (`nixos-esp`) for GRUB, so neither OS can interfere with the other's boot files.
+
+You will build this layout with `sgdisk` on `/dev/nvme0n1` before installing:
 
 | Partition | Name (partlabel) | Type | Size | fsType | Mount |
 |---|---|---|---|---|---|
@@ -87,7 +89,7 @@ You will build this layout with `parted` on `/dev/nvme0n1` before installing:
 | `nvme0n1p4` | **`nixos-esp`** | `EF00` (ESP) | 1 GB | fat32 | `/boot` |
 | `nvme0n1p5` | **`nixos-btrfs`** | Linux fs | 511 GB | btrfs | `/`, `/nix`, `/persist` (via subvols) |
 
-The partlabels `nixos-esp` and `nixos-btrfs` are critical — `hardware.nix` mounts by these names, and the rollback script opens `by-partlabel/nixos-btrfs`. If you forget to set them, the system will not boot.
+The partition numbers shown assume Windows occupies `p1–p3`; `sgdisk -n 0` picks the next free number automatically, so your actual numbers may differ. The partlabels `nixos-esp` and `nixos-btrfs` are critical — `disko.nix` mounts by these names, and the rollback script opens `by-partlabel/nixos-btrfs`. If you forget to set them, the system will not boot.
 
 ## Prerequisites
 
@@ -98,7 +100,7 @@ The partlabels `nixos-esp` and `nixos-btrfs` are critical — `hardware.nix` mou
    sha256sum nixos-*.iso
    # compare against the hash published on nixos.org/download
    ```
-4. **Important disk-data backup.** Although this guide is conservative about Windows, `parted` mistakes can still destroy partitions — back up irreplaceable Windows files to an external drive before starting.
+4. **Important disk-data backup.** Although this guide is conservative about Windows, a partition-editor mistake can still destroy partitions — back up irreplaceable Windows files to an external drive before starting.
 5. **Windows enabled for shrinking.** BitLocker must be suspended or disabled on C: before the volume can be shrunk from inside Windows (or from the live USB with `ntfsresize` after `ntfsfix`).
 6. **At least 512 GB of free space currently unused on the Windows volume.** If less, shrink Windows more aggressively, or use the "no-rollback" workaround in Troubleshooting.
 
@@ -169,13 +171,15 @@ timedatectl status
 
 ### Phase 2 — Partitioning the freed space
 
-This phase creates partitions **only in the 512 GB of unallocated space**. Everything else on the disk stays untouched. **Double-check every command** — `parted` will not ask twice.
+This phase creates partitions **only in the 512 GB of unallocated space**. Everything else on the disk stays untouched. **Double-check every command** — partition editors will not ask twice.
 
 #### 2.1 Enter a flake-capable shell
 
 ```bash
-nix-shell -p git vim parted btrfs-progs dosfstools --command bash
+nix-shell -p git vim btrfs-progs --command bash
 ```
+
+(`cfdisk` ships with util-linux and is already present on the live ISO; `dosfstools` is pulled in by disko's own script when it formats the ESP.)
 
 #### 2.2 Clone the repository (disko needs the flake)
 
@@ -199,66 +203,47 @@ nix flake show
 # Should list: nixosConfigurations.uontabc
 ```
 
-#### 2.3 Identify the target disk and free space
+#### 2.3 Create the two NixOS partitions (cfdisk)
+
+Open the interactive partition editor:
+
+```bash
+sudo cfdisk /dev/nvme0n1
+```
+
+If asked for a label type, select **gpt** (keep the existing one if the disk already has a GPT table). Use the arrow keys and enter/spacebar:
+
+1. Move to the **Free space** entry → **New** → size **1G** → type **EFI System**. This is `nixos-esp`.
+2. Move to the remaining **Free space** → **New** → accept the default size (the rest of the disk) → type **Linux filesystem**. This is `nixos-btrfs`.
+3. Select the new 1G partition → **Rename** → enter **nixos-esp** (this sets the GPT partition name = partlabel).
+4. Select the new btrfs partition → **Rename** → enter **nixos-btrfs**.
+5. Select **Write** → confirm with `yes`, then **Quit**.
+
+> In cfdisk, *Rename* writes the GPT partition name, which is what udev exposes as `/dev/disk/by-partlabel/<name>`. Both partitions must be renamed — the mount config and rollback script depend on the exact partlabels `nixos-esp` and `nixos-btrfs`.
+
+Make the kernel re-read the partition table (cfdisk usually does this itself; the commands are a no-op fallback):
+
+```bash
+sudo partprobe /dev/nvme0n1
+sudo udevadm settle
+```
+
+#### 2.4 Verify the partlabels
+
+```bash
+ls -l /dev/disk/by-partlabel/
+# Expect: nixos-esp  -> ../../nvme0n1p4   (numbers may differ)
+#         nixos-btrfs -> ../../nvme0n1p5
+```
+
+Also confirm the Windows partitions are untouched:
 
 ```bash
 lsblk
-# Confirm the NVMe is /dev/nvme0n1 and the Windows partition is, e.g., nvme0n1p3
-
-# Show the free-space map in MiB
-parted /dev/nvme0n1 unit MiB print free
+# Windows p1/p2/p3 still present, plus nixos-esp and nixos-btrfs
 ```
 
-The output will end with something like:
-
-```
-Number  Start    End      Size     Type      File system  Flags
- 1      0.02MiB  100MiB   100MiB   primary   fat32        boot, esp
- 2      100MiB   116MiB   16MiB    primary   ntfs         msftdata
- 3      116MiB   950GiB   950GiB   primary   ntfs         msftdata
-        950GiB   1462GiB  512GiB   Free Space
-```
-
-Record the Start (in MiB) and End of the Free Space block — call them `$FREE_START_MIB` and `$DISK_END_MIB`. For the example above: `971776` MiB (= 950 × 1024) and `1497088` MiB (= 1462 × 1024). The exact numbers depend on your disk.
-
-#### 2.4 Create the NixOS ESP and btrfs partitions
-
-Compute the ESP end first (ESP = 1024 MiB):
-
-```bash
-ESP_START=971776                       # replace with your $FREE_START_MIB
-ESP_END=$((ESP_START + 1024))          # ESP_END = ESP_START + 1024 MiB
-DISK_END=1497088                       # replace with your $DISK_END_MIB
-```
-
-Create the partitions with explicit **partlabels** (`nixos-esp`, `nixos-btrfs`):
-
-```bash
-parted ---pretend-input-tty /dev/nvme0n1 <<EOF
-unit MiB
-mkpart "nixos-esp" fat32 $ESP_START $ESP_END
-set ${num_esp} esp on
-mkpart "nixos-btrfs" btrfs $ESP_END $DISK_END
-print
-quit
-EOF
-```
-
-**Important:** `${num_esp}` is the partition number of the just-created ESP. parted prints the partition table after each command; read the printout and substitute the actual number (usually `4`). Re-run only the `set 4 esp on` line if needed:
-
-```bash
-parted /dev/nvme0n1 set 4 esp on
-```
-
-Verify the partlabels were written (they appear as `Name` in the parted printout and under `/dev/disk/by-partlabel/`):
-
-```bash
-parted /dev/nvme0n1 print
-ls -l /dev/disk/by-partlabel/
-# Expect: nixos-esp -> ../../nvme0n1p4, nixos-btrfs -> ../../nvme0n1p5
-```
-
-#### 2.4 Run disko (format + mount)
+#### 2.5 Run disko (format + mount)
 
 With the partitions in place, disko takes over. It is **idempotent** — `blkid` detects any existing filesystem and skips `mkfs`; `btrfs subvolume show` detects any existing subvolume and skips create. So even on a re-run nothing gets destroyed. disko also **injects `fileSystems.*` into the NixOS config automatically** — no manual `fileSystems` declarations in the repo.
 
@@ -284,7 +269,7 @@ mount | grep /mnt
 df -h /mnt /mnt/boot /mnt/nix /mnt/persist
 ```
 
-> **Note**: disko only targets the partitions you point it at (`/dev/disk/by-partlabel/nixos-*`). It does **not** touch Windows partitions. Every disko disk block in `modules/hosts/uontabc/default.nix` has `destroy = false`, so even if someone accidentally runs `--mode destroy,...`, disko refuses to wipe the configured partitions.
+> **Note**: disko only targets the partitions you point it at (`/dev/disk/by-partlabel/nixos-*`). It does **not** touch Windows partitions. Every disko disk block in `modules/hosts/uontabc/disko.nix` has `destroy = false`, so even if someone accidentally runs `--mode destroy,...`, disko refuses to wipe the configured partitions.
 
 ### Phase 3 — Installation
 
@@ -509,13 +494,13 @@ sudo efibootmgr --create --disk /dev/nvme0n1 --part 1 \
 
 Then re-run `os-prober` and `nh os switch`.
 
-### parted complained it can't shrink while Windows hibernated
+### Can't shrink the Windows volume while Windows hibernated
 
 Windows's "Fast Startup" is a partial hibernation. Disable it in Windows: *Control Panel → Power Options → Choose what the power buttons do → uncheck "Turn on fast startup"*. Then shut down Windows fully (not restart).
 
 ### BitLocker locked me out after resizing
 
-If Windows refuses to boot with a BitLocker recovery key prompt after a parted operation, you booted with BitLocker active. Suspend BitLocker from inside Windows **before** the parted operation (see step 1.1, item 2). To recover now: boot Windows with the recovery key, sign in, then suspend BitLocker and re-run parted if any partition was not yet created.
+If Windows refuses to boot with a BitLocker recovery key prompt after a partition-table operation, you booted with BitLocker active. Suspend BitLocker from inside Windows **before** the partition-table operation (see step 1.1, item 2). To recover now: boot Windows with the recovery key, sign in, then suspend BitLocker and re-run the operation if any partition was not yet created.
 
 ### `nixos-install` fails with "no space left on /mnt"
 
@@ -538,7 +523,7 @@ If `nvidia-smi` fails on a Blackwell GPU, verify `hardware.nvidia.open = true` i
 
 ### disko data-loss warning (dual-boot — historical)
 
-Previous versions of this guide used `disko --mode destroy,format,mount`, which wipes Windows. That mode is now removed. If you find an older copy of the README mentioning disko, ignore it — the current layout is manual `parted` + `fileSystems` exactly to support same-disk dual-boot.
+Previous versions of this guide used `disko --mode destroy,format,mount`, which wipes Windows. That mode is now removed. If you find an older copy of the README mentioning disko, ignore it — the current layout is manual `cfdisk` + disko `formatMount` exactly to support same-disk dual-boot.
 
 ### Enabling PRIME offload on a hybrid laptop (not the 8940HX)
 
@@ -579,7 +564,7 @@ ls -l /dev/disk/by-partlabel/ | grep nixos
 # Expect: nixos-esp and nixos-btrfs
 ```
 
-If missing, you forgot to name the partitions in parted. Drop into the live USB again and:
+If missing, you forgot to rename the partitions in cfdisk. Drop into the live USB again, re-run `cfdisk`, and rename the two partitions to `nixos-esp` and `nixos-btrfs` (or set the names non-interactively):
 
 ```bash
 parted /dev/nvme0n1 name 4 nixos-esp
