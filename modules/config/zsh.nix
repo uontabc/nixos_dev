@@ -11,41 +11,41 @@
         truncation_length = 3
         truncation_symbol = "…/"
         style = "bold bright-blue"
-        format = "[$path]($style) "
+        format = "[$path]($style)"
 
         [git_branch]
-        symbol = " "
+        symbol = ""
         style = "bold purple"
-        format = "[$symbol$branch]($style)"
+        format = "[$symbol（$branch）]($style)"
 
         [git_status]
         style = "bold bright-yellow"
-        format = "[$all_status$ahead_behind]($style) "
-        ahead = "↑ "
-        behind = "↓ "
-        diverged = "⇕ "
-        staged = "● "
-        modified = "✎ "
-        deleted = "✗ "
-        untracked = "… "
-        conflicted = "= "
+        format = "[$all_status$ahead_behind]($style)"
+        ahead = "↑"
+        behind = "↓"
+        diverged = "⇕"
+        staged = "●"
+        modified = "✎"
+        deleted = "✗"
+        untracked = "…"
+        conflicted = "="
 
         [cmd_duration]
         min_time = 2_000
-        format = "in [$duration](bold bright-cyan) "
+        format = "in [$duration](bold bright-cyan)"
 
         [python]
-        symbol = " "
+        symbol = ""
         version_format = "v''${raw}"
         style = "bold bright-yellow"
 
         [rust]
-        symbol = " "
+        symbol = ""
         version_format = "v''${raw}"
         style = "bold red"
 
         [golang]
-        symbol = " "
+        symbol = ""
         version_format = "v''${raw}"
         style = "bold bright-cyan"
 
