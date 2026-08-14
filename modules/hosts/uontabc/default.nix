@@ -1,10 +1,12 @@
-{
+{ self, ... }: {
   hosts.uontabc = {
     system = "x86_64-linux";
     stateVersion = "26.05";
     module =
-      { lib, config, ... }: {
-        imports = with config.flake.modules.nixos; [
+      { lib, ... }: {
+        # NOTE: `self.modules.nixos` here is the flake output (flake-parts),
+        # NOT the NixOS config — referencing config in imports would recurse.
+        imports = with self.modules.nixos; [
           boot
           network
           hardware
