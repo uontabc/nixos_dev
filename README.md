@@ -23,35 +23,45 @@ An earlier version used [disko](https://github.com/nix-community/disko) for decl
 
 ```
 .
-├── flake.nix                       # Flake entry: inputs + flake-parts mkFlake
-├── flake-modules/
-│   └── nixos.nix                   # nixosConfigurations.uontabc (under flake-parts)
-├── hosts/uontabc/
-│   ├── default.nix                 # Host entry
-│   └── hardware.nix                # fileSystems, rollback script, kernel modules
-└── modules/nixos/                  # All NixOS modules (no home-manager)
-    ├── default.nix                 # Aggregate import
-    ├── core/                       # boot, networking, locale, users, packages, env, nh
-    ├── hardware/                   # cpu-amd, nvidia, graphics, bluetooth, input
-    ├── desktop/                    # display, portal, audio, fonts, niri, noctalia, qt, kitty
-    └── persistence/               # impermanence
+├── flake.nix                       # Minimal entry: import-tree auto-imports ./modules/
+└── modules/                        # All flake-parts + NixOS modules (no home-manager)
+    ├── systems.nix                 #   systems list
+    ├── flake-parts.nix             #   perSystem config (unfree, overlays)
+    ├── lib/nixos.nix               #   host factory: options.hosts → nixosConfigurations
+    ├── users.nix                   #   my.name / my.packages options + user creation
+    ├── base.nix                    #   aggregator: users, nix, i18n, env, nh, git
+    ├── boot.nix                    #   GRUB + os-prober + btrfs/ntfs
+    ├── network.nix                 #   NetworkManager + openssh
+    ├── env.nix                     #   XDG session variables
+    ├── nh.nix                      #   nh CLI + weekly GC
+    ├── hardware.nix                 #   aggregator: cpu-amd, nvidia, graphics, bluetooth, input
+    ├── cpu-amd.nix  nvidia.nix  graphics.nix  bluetooth.nix  input.nix
+    ├── desktop.nix                 #   aggregator: audio, display, portal, noctalia, niri, kitty, qt, fonts
+    ├── audio.nix  display.nix  portal.nix  noctalia.nix
+    ├── impermanence.nix            #   persistent state via /persist bind-mounts
+    ├── config/                     #   per-app configs (each a named nixos module)
+    │   ├── i18n.nix  nix.nix  git.nix  fonts.nix
+    │   ├── niri.nix  kitty.nix  qt.nix
+    └── hosts/uontabc/default.nix   #   hosts.uontabc = { system, stateVersion, module }
 ```
 
-User-level configuration is managed entirely within `modules/nixos/`:
+Built with [flake-parts](https://flake.parts) + [import-tree](https://github.com/vic/import-tree): every `.nix` file under `modules/` is auto-imported — no `default.nix` aggregates. Each module declares `flake.modules.nixos.<name>` and references others by name, not by path. Inspired by [ocfox/island](https://github.com/ocfox/island).
 
-- User packages → `users.users.onyx.packages` (`core/users.nix`)
-- Configuration files (niri KDL, kitty.conf) → `pkgs.writeText` produces a nix-store path, then `systemd.tmpfiles.rules` symlinks it into `/home/onyx/.config/...`
+User-level configuration is managed entirely within NixOS modules:
+
+- User packages → `my.packages` option (collected into `users.users.${my.name}.packages`)
+- Configuration files (niri KDL, kitty.conf) → `pkgs.writeText` produces a nix-store path, then `systemd.tmpfiles.rules` symlinks it into `/home/<user>/.config/...`
 
 ## Hardware Profile
 
 | Component | Assumed | Adjust in |
 |---|---|---|
-| CPU | AMD Ryzen 9 8940HX (Zen 4, Dragon Range) | `modules/nixos/hardware/cpu-amd.nix` |
-| dGPU | NVIDIA RTX 5060 Laptop (Blackwell sm_120) | `modules/nixos/hardware/nvidia.nix` |
+| CPU | AMD Ryzen 9 8940HX (Zen 4, Dragon Range) | `modules/cpu-amd.nix` |
+| dGPU | NVIDIA RTX 5060 Laptop (Blackwell sm_120) | `modules/nvidia.nix` |
 | iGPU | None (HX series ships with disabled/minimal iGPU; dGPU drives displays) | No PRIME config needed |
-| Internal display | eDP-1, 2560×1600 @ 240 Hz | `modules/nixos/desktop/niri.nix` `output` block |
+| Internal display | eDP-1, 2560×1600 @ 240 Hz | `modules/config/niri.nix` `output` block |
 | External display | DP-1, 2560×1440 @ 210 Hz | same |
-| Target disk | Single NVMe, Windows + NixOS coexisting | `hosts/uontabc/hardware.nix` (`device` paths) |
+| Target disk | Single NVMe, Windows + NixOS coexisting | `modules/hosts/uontabc/default.nix` (`fileSystems`) |
 | NixOS partition size | 512 GB | determined by your `parted mkpart` step |
 
 ## Target Partition Layout
@@ -347,7 +357,7 @@ Select **NixOS**. The initrd rollback script runs:
 - On **first boot**: since the `@root-blank` snapshot already exists (we created it in step 2.5), it deletes `root` and re-snapshots from `@root-blank`. This is a no-op semantically but validates the rollback path.
 - On **subsequent boots**: same operation — rolls back any imperative changes to `/`.
 
-Then the system continues into `tuigreet` (the login prompt). Log in as `onyx` with initial password `changeme` (defined in `modules/nixos/core/users.nix`).
+Then the system continues into `tuigreet` (the login prompt). Log in as `onyx` with initial password `changeme` (defined in `modules/users.nix`).
 
 #### 4.2 Change passwords immediately
 
@@ -356,7 +366,7 @@ passwd                # user password
 sudo passwd root      # root password
 ```
 
-For better hygiene, replace `initialPassword` in `modules/nixos/core/users.nix` with `hashedPassword` (see [the NixOS manual](https://nixos.org/manual/nixos/stable/#sec-user-sha512)).
+For better hygiene, replace `initialPassword` in `modules/users.nix` with `hashedPassword` (see [the NixOS manual](https://nixos.org/manual/nixos/stable/#sec-user-sha512)).
 
 #### 4.3 Verify the desktop session
 
@@ -392,7 +402,7 @@ cat /sys/module/nvidia_drm/parameters/modeset
 # Expect: Y
 ```
 
-If `nvidia-smi` fails, confirm `hardware.nvidia.open = true` in `modules/nixos/hardware/nvidia.nix` and check `dmesg | grep -i nvidia`.
+If `nvidia-smi` fails, confirm `hardware.nvidia.open = true` in `modules/nvidia.nix` and check `dmesg | grep -i nvidia`.
 
 #### 4.5 Verify external display (DP-1)
 
@@ -403,7 +413,7 @@ niri msg outputs
 # Expect both eDP-1 (2560×1600@240 Hz) and DP-1 (2560×1440@210 Hz)
 ```
 
-If the output names differ (e.g. `DisplayPort-1` instead of `DP-1`), adjust the `output` blocks in `modules/nixos/desktop/niri.nix`.
+If the output names differ (e.g. `DisplayPort-1` instead of `DP-1`), adjust the `output` blocks in `modules/config/niri.nix`.
 
 #### 4.6 Verify Windows is still bootable
 
@@ -420,7 +430,7 @@ Re-run `nh os switch` so GRUB regenerates with the Windows entry baked in (you m
 
 #### 4.7 Move the repo to its permanent location and pin NH_FLAKE
 
-`nh` reads `NH_FLAKE` (set to `/home/onyx/nixos` in `modules/nixos/core/nh.nix`):
+`nh` reads `NH_FLAKE` (set to `/home/onyx/nixos` in `modules/nh.nix`):
 
 ```bash
 cd ~
@@ -477,7 +487,7 @@ The GRUB boot menu lists the 10 most recent generations (`configurationLimit = 1
 
 ### Modify niri configuration
 
-Edit `modules/nixos/desktop/niri.nix`. Niri hot-reloads `config.kdl` on save. Configuration errors surface in the journal:
+Edit `modules/config/niri.nix`. Niri hot-reloads `config.kdl` on save. Configuration errors surface in the journal:
 
 ```bash
 journalctl --user -u niri -f
@@ -490,7 +500,7 @@ Reference: https://niri-wm.github.io/niri/Configuration:-Introduction
 Because `/` is ephemeral (rolled back on each boot):
 
 - Do not store long-lived data directly under `/` — it will not survive a reboot.
-- System state to persist: add to `modules/nixos/persistence/impermanence.nix` → `directories` / `files`.
+- System state to persist: add to `modules/impermanence.nix` → `directories` / `files`.
 - User state to persist: add to the same file → `users.onyx.directories` (`Documents`, `Downloads`, etc. are already listed).
 - `~/.config` is intentionally **not** persisted; niri and kitty configs are bind-symlinked to the nix store via `systemd.tmpfiles`.
 - To persist Noctalia's GUI settings, add `"noctalia"` to `users.onyx.directories`.
@@ -562,7 +572,7 @@ Convert the hexadecimal PCI addresses to NixOS format (decimal `bus:device.funct
 | `00:02.0` | `PCI:0:2:0` |
 | `01:00.0` | `PCI:1:0:0` |
 
-Edit `modules/nixos/hardware/nvidia.nix`:
+Edit `modules/nvidia.nix`:
 
 ```nix
 hardware.nvidia.prime = {

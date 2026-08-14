@@ -23,35 +23,45 @@
 
 ```
 .
-├── flake.nix                       # Flake 入口：inputs + flake-parts mkFlake
-├── flake-modules/
-│   └── nixos.nix                   # nixosConfigurations.uontabc（在 flake-parts 下）
-├── hosts/uontabc/
-│   ├── default.nix                 # 主机入口
-│   └── hardware.nix                # fileSystems、回滚脚本、内核模块
-└── modules/nixos/                  # 全部为 NixOS 模块（无 home-manager）
-    ├── default.nix                 # 汇总 import
-    ├── core/                       # boot / networking / locale / users / packages / env / nh
-    ├── hardware/                   # cpu-amd / nvidia / graphics / bluetooth / input
-    ├── desktop/                    # display / portal / audio / fonts / niri / noctalia / qt / kitty
-    └── persistence/               # impermanence
+├── flake.nix                       # 最小入口：import-tree 自动导入 ./modules/
+└── modules/                        # 所有 flake-parts + NixOS 模块（无 home-manager）
+    ├── systems.nix                 #   systems 列表
+    ├── flake-parts.nix             #   perSystem 配置（unfree、overlays）
+    ├── lib/nixos.nix               #   主机工厂：options.hosts → nixosConfigurations
+    ├── users.nix                   #   my.name / my.packages 选项 + 用户创建
+    ├── base.nix                    #   聚合：users, nix, i18n, env, nh, git
+    ├── boot.nix                    #   GRUB + os-prober + btrfs/ntfs
+    ├── network.nix                 #   NetworkManager + openssh
+    ├── env.nix                     #   XDG 会话变量
+    ├── nh.nix                      #   nh CLI + 每周 GC
+    ├── hardware.nix                #   聚合：cpu-amd, nvidia, graphics, bluetooth, input
+    ├── cpu-amd.nix  nvidia.nix  graphics.nix  bluetooth.nix  input.nix
+    ├── desktop.nix                 #   聚合：audio, display, portal, noctalia, niri, kitty, qt, fonts
+    ├── audio.nix  display.nix  portal.nix  noctalia.nix
+    ├── impermanence.nix            #   通过 /persist bind-mount 持久化状态
+    ├── config/                     #   各应用配置（每个为具名 nixos 模块）
+    │   ├── i18n.nix  nix.nix  git.nix  fonts.nix
+    │   ├── niri.nix  kitty.nix  qt.nix
+    └── hosts/uontabc/default.nix   #   hosts.uontabc = { system, stateVersion, module }
 ```
 
-用户级配置完全在 `modules/nixos/` 内管理：
+基于 [flake-parts](https://flake.parts) + [import-tree](https://github.com/vic/import-tree)：`modules/` 下的每个 `.nix` 文件自动导入——无需 `default.nix` 汇总。各模块声明 `flake.modules.nixos.<name>`，按名称引用其他模块而非路径。参考 [ocfox/island](https://github.com/ocfox/island)。
 
-- 用户包 → `users.users.onyx.packages`（`core/users.nix`）
-- 配置文件（niri KDL、kitty.conf）→ `pkgs.writeText` 生成 nix store 路径，再由 `systemd.tmpfiles.rules` 软链接至 `/home/onyx/.config/...`
+用户级配置完全由 NixOS 模块管理：
+
+- 用户包 → `my.packages` 选项（汇入 `users.users.${my.name}.packages`）
+- 配置文件（niri KDL、kitty.conf）→ `pkgs.writeText` 生成 nix store 路径，再由 `systemd.tmpfiles.rules` 软链接至 `/home/<user>/.config/...`
 
 ## 硬件配置
 
 | 组件 | 假设 | 修改位置 |
 |---|---|---|
-| CPU | AMD Ryzen 9 8940HX（Zen 4, Dragon Range） | `modules/nixos/hardware/cpu-amd.nix` |
-| dGPU | NVIDIA RTX 5060 Laptop（Blackwell sm_120） | `modules/nixos/hardware/nvidia.nix` |
+| CPU | AMD Ryzen 9 8940HX (Zen 4, Dragon Range) | `modules/cpu-amd.nix` |
+| dGPU | NVIDIA RTX 5060 Laptop（Blackwell sm_120） | `modules/nvidia.nix` |
 | iGPU | 无（HX 系列 iGPU 禁用/极简，dGPU 直接驱动显示器） | 无需 PRIME 配置 |
-| 内屏 | eDP-1，2560×1600 @ 240 Hz | `modules/nixos/desktop/niri.nix` 的 `output` 节点 |
+| 内屏 | eDP-1，2560×1600 @ 240 Hz | `modules/config/niri.nix` 的 `output` 节点 |
 | 外屏 | DP-1，2560×1440 @ 210 Hz | 同上 |
-| 目标磁盘 | 单 NVMe，Windows + NixOS 共存 | `hosts/uontabc/hardware.nix`（`device` 路径） |
+| 目标磁盘 | 单 NVMe，Windows + NixOS 共存 | `modules/hosts/uontabc/default.nix`（`fileSystems`） |
 | NixOS 分区大小 | 512 GB | 由你 `parted mkpart` 时确定 |
 
 ## 目标分区布局
@@ -348,7 +358,7 @@ poweroff
 - **首次启动**：因为 `@root-blank` 已存在（步骤 2.5 已建），它删除 `root` 并重新快照。语义上无副作用，仅验证回滚路径可用。
 - **后续启动**：同样操作——把 `/` 上的任何 imperative 改动回滚回去。
 
-随后系统启动进入 `tuigreet`（登录提示）。以 `onyx` 登录，初始密码 `changeme`（定义于 `modules/nixos/core/users.nix`）。
+随后系统启动进入 `tuigreet`（登录提示）。以 `onyx` 登录，初始密码 `changeme`（定义于 `modules/users.nix`）。
 
 #### 4.2 立即修改密码
 
@@ -357,7 +367,7 @@ passwd                # 用户密码
 sudo passwd root      # root 密码
 ```
 
-更稳妥的是将 `modules/nixos/core/users.nix` 中的 `initialPassword` 替换为 `hashedPassword`（参见 [NixOS 手册](https://nixos.org/manual/nixos/stable/#sec-user-sha512)）。
+更稳妥的是将 `modules/users.nix` 中的 `initialPassword` 替换为 `hashedPassword`（参见 [NixOS 手册](https://nixos.org/manual/nixos/stable/#sec-user-sha512)）。
 
 #### 4.3 验证桌面会话
 
@@ -392,7 +402,7 @@ cat /sys/module/nvidia_drm/parameters/modeset
 # 预期：Y
 ```
 
-若 `nvidia-smi` 失败，确认 `modules/nixos/hardware/nvidia.nix` 中 `hardware.nvidia.open = true`，并查 `dmesg | grep -i nvidia`。
+若 `nvidia-smi` 失败，确认 `modules/nvidia.nix` 中 `hardware.nvidia.open = true`，并查 `dmesg | grep -i nvidia`。
 
 #### 4.5 验证外屏（DP-1）
 
@@ -403,7 +413,7 @@ niri msg outputs
 # 预期：eDP-1 (2560×1600@240 Hz) 与 DP-1 (2560×1440@210 Hz) 均列出
 ```
 
-若输出名不同（如 `DisplayPort-1` 而非 `DP-1`），调整 `modules/nixos/desktop/niri.nix` 的 `output` 节点。
+若输出名不同（如 `DisplayPort-1` 而非 `DP-1`），调整 `modules/config/niri.nix` 的 `output` 节点。
 
 #### 4.6 验证 Windows 仍可启动
 
@@ -420,7 +430,7 @@ sudo nix-shell -p os-prober -c os-prober
 
 #### 4.7 把仓库搬到永久位置并固定 NH_FLAKE
 
-`nh` 通过 `NH_FLAKE` 找 flake（`modules/nixos/core/nh.nix` 中设为 `/home/onyx/nixos`）：
+`nh` 通过 `NH_FLAKE` 找 flake（`modules/nh.nix` 中设为 `/home/onyx/nixos`）：
 
 ```bash
 cd ~
@@ -477,7 +487,7 @@ GRUB 启动菜单列出最近 10 个 generation（`configurationLimit = 10`）�
 
 ### 修改 niri 配置
 
-编辑 `modules/nixos/desktop/niri.nix`。niri 热重载 `config.kdl`，保存即生效。语法错误输出至日志：
+编辑 `modules/config/niri.nix`。niri 热重载 `config.kdl`，保存即生效。语法错误输出至日志：
 
 ```bash
 journalctl --user -u niri -f
@@ -490,7 +500,7 @@ journalctl --user -u niri -f
 由于 `/` 为 ephemeral（每次开机回滚）：
 
 - 不要在 `/` 下存放需长期保留的数据——重启后会丢失
-- 系统级持久化：添加至 `modules/nixos/persistence/impermanence.nix` 的 `directories` / `files`
+- 系统级持久化：添加至 `modules/impermanence.nix` 的 `directories` / `files`
 - 用户级持久化：添加至同文件 `users.onyx.directories`（已有 `Documents`、`Downloads` 等）
 - `~/.config` **未**持久化：niri 与 kitty 配置通过 `systemd.tmpfiles` 软链接至 nix store
 - 若需持久化 Noctalia 的 GUI 设置，在 `users.onyx.directories` 中添加 `"noctalia"`
@@ -562,7 +572,7 @@ lspci -nn | grep -E 'VGA|3D'
 | `00:02.0` | `PCI:0:2:0` |
 | `01:00.0` | `PCI:1:0:0` |
 
-编辑 `modules/nixos/hardware/nvidia.nix`：
+编辑 `modules/nvidia.nix`：
 
 ```nix
 hardware.nvidia.prime = {
