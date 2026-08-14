@@ -404,30 +404,21 @@ sudo nix-shell -p os-prober -c os-prober
 
 #### 4.7 把仓库搬到永久位置并固定 NH_FLAKE
 
-`nh` 通过 `NH_FLAKE` 找 flake（`modules/nh.nix` 中设为 `/home/onyx/nixos`）：
+`nh` 通过 `NH_FLAKE` 找 flake（`modules/nh.nix` 中设为 `/home/onyx/nixos_dev`，与仓库名一致）。把仓库 clone 到该确切路径，`nh os switch` 即可零参数运行：
 
 ```bash
 cd ~
-git clone https://github.com/uontabc/nixos_dev.git nixos
-cd nixos
+git clone https://github.com/uontabc/nixos_dev.git nixos_dev
+cd nixos_dev
 
-echo $NH_FLAKE           # 应输出：/home/onyx/nixos
+echo $NH_FLAKE           # 应输出：/home/onyx/nixos_dev
 nh os info               # 应打印当前系统信息
 ```
-
-若 clone 到了别的目录（如 `~/nixos_dev`），显式指向它即可，无需改名：
-
-```bash
-export NH_OS_FLAKE=/home/onyx/nixos_dev   # 仅对 `nh os` 覆盖 NH_FLAKE
-nh os switch .                             # 或直接传路径，不需要环境变量
-```
-
-（也可以在 `modules/nh.nix` 里按主机改 `programs.nh.flake`——它是 `mkDefault`。）
 
 #### 4.8 通过 nh 应用更新
 
 ```bash
-cd ~/nixos
+cd ~/nixos_dev
 nix flake update          # 更新 flake.lock 至最新 nixpkgs-26.05
 nh os switch              # 构建 + 激活
 ```
@@ -449,7 +440,7 @@ sudo umount /mnt
 ### 更新 Flake 输入
 
 ```bash
-cd ~/nixos               # 仓库克隆位置
+cd ~/nixos_dev               # 仓库克隆位置
 nix flake update         # 更新 flake.lock
 nh os switch             # 构建并激活
 ```
@@ -653,14 +644,14 @@ sudo nixos-rebuild switch --flake /etc/nixos#wsl
 日常使用请在家目录保留一个工作克隆（`/etc/nixos` 里的烘焙副本是静态快照，不是 git 仓库）：
 
 ```bash
-mkdir -p ~/nixos
-git clone https://github.com/uontabc/nixos_dev.git ~/nixos
+mkdir -p ~/nixos_dev
+git clone https://github.com/uontabc/nixos_dev.git ~/nixos_dev
 
-# nh 模块已把 NH_FLAKE 设为 ~/nixos——用 nh 切换：
+# nh 模块已把 NH_FLAKE 设为 ~/nixos_dev——用 nh 切换：
 nh os switch        # 构建并激活主机 "wsl"
 
 # 或不用 nh：
-sudo nixos-rebuild switch --flake ~/nixos#wsl
+sudo nixos-rebuild switch --flake ~/nixos_dev#wsl
 ```
 
 重建立即生效；若 systemd 单元卡住，用 `wsl --shutdown` 重启发行版。
@@ -679,7 +670,7 @@ wsl -d NixOS -u root
 ```bash
 passwd root          # 设置 root 密码（可选）
 passwd onyx          # 重置 onyx 密码
-nixos-rebuild switch --flake /home/onyx/nixos#wsl
+nixos-rebuild switch --flake /home/onyx/nixos_dev#wsl
 ```
 
 注意 `nixos-rebuild switch` 必须 root 运行：nix store 由 nix daemon 写入（普通用户可构建），但最后一步 `nix-env --set` 写 `/nix/var/nix/profiles/system` 需要 root（用 `sudo nixos-rebuild switch` 或上面的 root shell）。

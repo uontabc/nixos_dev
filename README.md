@@ -403,30 +403,21 @@ Re-run `nh os switch` so GRUB regenerates with the Windows entry baked in (you m
 
 #### 4.7 Move the repo to its permanent location and pin NH_FLAKE
 
-`nh` reads `NH_FLAKE` (set to `/home/onyx/nixos` in `modules/nh.nix`):
+`nh` reads `NH_FLAKE` (set to `/home/onyx/nixos_dev` in `modules/nh.nix`, matching the repo name). Clone the repo to that exact path so `nh os switch` works with no arguments:
 
 ```bash
 cd ~
-git clone https://github.com/uontabc/nixos_dev.git nixos
-cd nixos
+git clone https://github.com/uontabc/nixos_dev.git nixos_dev
+cd nixos_dev
 
-echo $NH_FLAKE           # Should print: /home/onyx/nixos
+echo $NH_FLAKE           # Should print: /home/onyx/nixos_dev
 nh os info               # Should print info about the current system
 ```
-
-If you cloned the repo to a different directory (e.g. `~/nixos_dev`), point nh at it explicitly instead of renaming:
-
-```bash
-export NH_OS_FLAKE=/home/onyx/nixos_dev   # overrides NH_FLAKE for `nh os` only
-nh os switch .                             # or pass the path directly, no env var needed
-```
-
-(You can also set `programs.nh.flake` per-host in `modules/nh.nix` — it is `mkDefault`.)
 
 #### 4.8 Apply updates via nh
 
 ```bash
-cd ~/nixos
+cd ~/nixos_dev
 nix flake update          # update flake.lock to latest nixpkgs-26.05
 nh os switch              # build + activate
 ```
@@ -448,7 +439,7 @@ Rebuild without the script; impermanence's bind-mounts from `/persist` still wor
 ### Update the flake inputs
 
 ```bash
-cd ~/nixos
+cd ~/nixos_dev
 nix flake update         # update flake.lock
 nh os switch             # build and activate
 ```
@@ -652,14 +643,14 @@ This enables the complete `base` profile (user onyx, nix settings, nh, git, etc.
 For day-to-day use, keep a working clone in your home directory (the baked-in copy at `/etc/nixos` is a static snapshot and not a git repo):
 
 ```bash
-mkdir -p ~/nixos
-git clone https://github.com/uontabc/nixos_dev.git ~/nixos
+mkdir -p ~/nixos_dev
+git clone https://github.com/uontabc/nixos_dev.git ~/nixos_dev
 
-# NH_FLAKE is already set to ~/nixos by the nh module — switch with nh:
+# NH_FLAKE is already set to ~/nixos_dev by the nh module — switch with nh:
 nh os switch        # builds & activates hostname "wsl"
 
 # or without nh:
-sudo nixos-rebuild switch --flake ~/nixos#wsl
+sudo nixos-rebuild switch --flake ~/nixos_dev#wsl
 ```
 
 Rebuilds take effect immediately; restart the distro with `wsl --shutdown` if systemd units are stuck.
@@ -678,7 +669,7 @@ Then, in the root shell:
 ```bash
 passwd root          # set a root password (optional)
 passwd onyx          # reset the onyx password
-nixos-rebuild switch --flake /home/onyx/nixos#wsl
+nixos-rebuild switch --flake /home/onyx/nixos_dev#wsl
 ```
 
 Note that `nixos-rebuild switch` must run as root: the store is written by the nix daemon (user builds work), but the final `nix-env --set` to `/nix/var/nix/profiles/system` requires root (`sudo nixos-rebuild switch` or the root shell above).

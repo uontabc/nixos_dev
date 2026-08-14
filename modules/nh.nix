@@ -8,9 +8,8 @@
       programs.nh = {
         enable = true;
         # Sets NH_FLAKE so `nh os switch` works without arguments.
-        # mkDefault so a host can override (e.g. if the repo lives elsewhere).
-        # Also overridable at runtime with NH_OS_FLAKE=/path/to/repo.
-        flake = lib.mkDefault "${home}/nixos";
+        # Repo lives at ~/nixos_dev (matches the GitHub repo name).
+        flake = lib.mkDefault "${home}/nixos_dev";
         clean = {
           enable = true;
           dates = "weekly";
