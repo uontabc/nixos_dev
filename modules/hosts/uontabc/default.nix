@@ -58,7 +58,7 @@
           # TODO: replace with the real host key once uontabc is installed:
           #   ssh-keyscan uontabc | head -1   # or cat /etc/ssh/ssh_host_ed25519_key.pub
           # then run `nix run .#vaultix.app.x86_64-linux.renc` and commit the cache.
-          hostPubkey = "ssh-ed25519 AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= placeholder-for-uontabc";
+          hostPubkey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEQWSIUAXWVjjw6HZSRdfBaDYNZsoJCUVyG6JzSofkGU placeholder-for-uontabc";
         };
       };
   };
