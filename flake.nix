@@ -4,6 +4,8 @@
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-26.05";
 
+    flake-parts.url = "github:hercules-ci/flake-parts";
+
     impermanence.url = "github:nix-community/impermanence";
 
     # Tracks upstream (nixos-unstable); if it breaks vs 26.05, drop `follows`.
@@ -13,17 +15,10 @@
     };
   };
 
-  outputs = inputs@{ self, nixpkgs, ... }:
-    {
-      nixosConfigurations.uontabc = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
-        specialArgs = { inherit inputs; };
+  outputs = inputs@{ flake-parts, ... }:
+    flake-parts.lib.mkFlake { inherit inputs; } {
+      imports = [ ./flake-modules/nixos.nix ];
 
-        modules = [
-          ./hosts/uontabc
-          inputs.impermanence.nixosModules.impermanence
-          inputs.noctalia.nixosModules.default
-        ];
-      };
+      systems = [ "x86_64-linux" ];
     };
 }

@@ -2,7 +2,7 @@
 
 **Languages:** English (current) · [中文](README.zh-CN.md)
 
-A declarative NixOS desktop configuration built entirely on NixOS modules (no home-manager). It pairs the [niri](https://github.com/niri-wm/niri) scrollable-tiling compositor with [Noctalia v5](https://github.com/noctalia-dev/noctalia) for the shell layer, [impermanence](https://github.com/nix-community/impermanence) for an ephemeral root with snapshot-based rollback, and [nh](https://github.com/nix-community/nh) for maintenance. The target host runs Windows + NixOS on the **same physical disk** — disk preparation is manual `parted`; `fileSystems` and the rollback script reference partitions by a stable *partlabel* (`nixos-esp`, `nixos-btrfs`).
+A declarative NixOS desktop configuration built entirely on NixOS modules (no home-manager). The flake is structured with [flake-parts](https://github.com/hercules-ci/flake-parts). It pairs the [niri](https://github.com/niri-wm/niri) scrollable-tiling compositor with [Noctalia v5](https://github.com/noctalia-dev/noctalia) for the shell layer, [impermanence](https://github.com/nix-community/impermanence) for an ephemeral root with snapshot-based rollback, and [nh](https://github.com/nix-community/nh) for maintenance. The target host runs Windows + NixOS on the **same physical disk** — disk preparation is manual `parted`; `fileSystems` and the rollback script reference partitions by a stable *partlabel* (`nixos-esp`, `nixos-btrfs`).
 
 ## Features
 
@@ -23,7 +23,9 @@ An earlier version used [disko](https://github.com/nix-community/disko) for decl
 
 ```
 .
-├── flake.nix                       # Flake entry: inputs + nixosConfiguration
+├── flake.nix                       # Flake entry: inputs + flake-parts mkFlake
+├── flake-modules/
+│   └── nixos.nix                   # nixosConfigurations.uontabc (under flake-parts)
 ├── hosts/uontabc/
 │   ├── default.nix                 # Host entry
 │   └── hardware.nix                # fileSystems, rollback script, kernel modules
@@ -615,6 +617,7 @@ This makes Windows treat the hardware clock as UTC, matching NixOS. Do **not** u
 - [Noctalia documentation](https://docs.noctalia.dev)
 - [NixOS & Nix Flakes Book](https://nixos-and-flakes.thiscute.world/)
 - [impermanence](https://github.com/nix-community/impermanence)
+- [flake-parts](https://flake.parts) — module system for organizing flake outputs
 - [btrfs subvolumes — Arch Wiki](https://wiki.archlinux.org/title/Btrfs#Subvolumes) (the rollback pattern is borrowed from here)
 - [ryan4yin/nix-config](https://github.com/ryan4yin/nix-config) — reference for niri + Noctalia + impermanence composition
 

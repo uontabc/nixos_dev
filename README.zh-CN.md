@@ -2,7 +2,7 @@
 
 **语言：** [English](README.md) · 中文（当前）
 
-完全基于 NixOS 模块（不使用 home-manager）的声明式桌面配置。合成器采用 [niri](https://github.com/niri-wm/niri)（滚动式平铺），桌面 shell 采用 [Noctalia v5](https://github.com/noctalia-dev/noctalia)，持久化由 [impermanence](https://github.com/nix-community/impermanence) 配合 btrfs 快照回滚实现，日常维护命令使用 [nh](https://github.com/nix-community/nh)。目标主机为 **Windows + NixOS 同盘共存**——磁盘准备走手动 `parted`；`fileSystems` 与回滚脚本通过稳定的 *partlabel*（`nixos-esp`、`nixos-btrfs`）引用分区。
+完全基于 NixOS 模块（不使用 home-manager）的声明式桌面配置。flake 由 [flake-parts](https://github.com/hercules-ci/flake-parts) 组织。合成器采用 [niri](https://github.com/niri-wm/niri)（滚动式平铺），桌面 shell 采用 [Noctalia v5](https://github.com/noctalia-dev/noctalia)，持久化由 [impermanence](https://github.com/nix-community/impermanence) 配合 btrfs 快照回滚实现，日常维护命令使用 [nh](https://github.com/nix-community/nh)。目标主机为 **Windows + NixOS 同盘共存**——磁盘准备走手动 `parted`；`fileSystems` 与回滚脚本通过稳定的 *partlabel*（`nixos-esp`、`nixos-btrfs`）引用分区。
 
 ## 特性概览
 
@@ -23,7 +23,9 @@
 
 ```
 .
-├── flake.nix                       # Flake 入口：inputs + nixosConfiguration
+├── flake.nix                       # Flake 入口：inputs + flake-parts mkFlake
+├── flake-modules/
+│   └── nixos.nix                   # nixosConfigurations.uontabc（在 flake-parts 下）
 ├── hosts/uontabc/
 │   ├── default.nix                 # 主机入口
 │   └── hardware.nix                # fileSystems、回滚脚本、内核模块
@@ -615,6 +617,7 @@ reg add "HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation" /v RealTimeI
 - [Noctalia 文档](https://docs.noctalia.dev)
 - [NixOS & Nix Flakes Book](https://nixos-and-flakes.thiscute.world/)
 - [impermanence](https://github.com/nix-community/impermanence)
+- [flake-parts](https://flake.parts)——组织 flake 输出的模块系统
 - [btrfs subvolumes — Arch Wiki](https://wiki.archlinux.org/title/Btrfs#Subvolumes)（回滚模式借鉴自此）
 - [ryan4yin/nix-config](https://github.com/ryan4yin/nix-config)——参考其 niri + Noctalia + impermanence 组合
 
