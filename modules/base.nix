@@ -9,6 +9,7 @@
         nh
         git
         neovim
+        opencode
       ];
 
       hardware.enableRedistributableFirmware = true;

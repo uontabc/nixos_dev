@@ -50,7 +50,7 @@
     │   ├── default.nix             #     聚合：audio, display, portal, noctalia, xwayland + config 应用
     │   └── audio.nix  display.nix  portal.nix  noctalia.nix  xwayland.nix
     ├── config/                     #   各应用配置（每个为具名 nixos 模块）
-    │   └── i18n.nix  nix.nix  git.nix  fonts.nix  niri.nix  kitty.nix  qt.nix
+    │   └── i18n.nix  nix.nix  git.nix  fonts.nix  niri.nix  kitty.nix  qt.nix  opencode.nix
     ├── wsl.nix                     #   NixOS-WSL 模块（终端型 WSL 发行版）
     └── hosts/
         ├── uontabc/
@@ -633,6 +633,18 @@ cd ~/nixos
 git clone https://github.com/uontabc/nixos_dev.git .   # 首次
 nh os switch        # 读取 NH_FLAKE；自动识别主机名 "wsl"
 ```
+
+## opencode
+
+[opencode](https://opencode.ai)（AI 编程代理）通过 `base`（`modules/config/opencode.nix`）安装到每个主机：`pkgs.opencode` 进入 `my.packages`，最小化的 `~/.config/opencode/opencode.json` 由 `systemd.tmpfiles` 从 nix store 软链接——与 niri/kitty 配置同款模式。
+
+生成的配置设置 `username`、`autoupdate = false`（版本由 nix 管理）、`share = "manual"`。刻意**不含模型或 API key**——首次运行时交互式认证：
+
+```bash
+opencode auth login
+```
+
+然后在 TUI 里选模型（`Shift+Tab` 切换代理，`/model` 切换模型）。nixpkgs 包已用 `OPENCODE_DISABLE_AUTOUPDATE` 包装二进制。
 
 ## 参考
 
