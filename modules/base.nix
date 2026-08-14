@@ -8,6 +8,7 @@
         env
         nh
         git
+        opencode
       ];
 
       hardware.enableRedistributableFirmware = true;

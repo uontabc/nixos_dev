@@ -50,7 +50,7 @@ Run `disko --mode format,mount` (never `--mode destroy,...`). It is the single s
     │   ├── default.nix             #     aggregator: audio, display, portal, noctalia, xwayland + config apps
     │   └── audio.nix  display.nix  portal.nix  noctalia.nix  xwayland.nix
     ├── config/                     #   per-app configs (each a named nixos module)
-    │   └── i18n.nix  nix.nix  git.nix  fonts.nix  niri.nix  kitty.nix  qt.nix
+    │   └── i18n.nix  nix.nix  git.nix  fonts.nix  niri.nix  kitty.nix  qt.nix  opencode.nix
     ├── wsl.nix                     #   NixOS-WSL module (terminal-only WSL distro)
     └── hosts/
         ├── uontabc/
@@ -673,6 +673,18 @@ nixos-rebuild switch --flake /home/onyx/nixos#wsl
 ```
 
 Note that `nixos-rebuild switch` must run as root: the store is written by the nix daemon (user builds work), but the final `nix-env --set` to `/nix/var/nix/profiles/system` requires root (`sudo nixos-rebuild switch` or the root shell above).
+
+## opencode
+
+[opencode](https://opencode.ai) (the AI coding agent) is installed on every host via `base` (`modules/config/opencode.nix`): `pkgs.opencode` goes into `my.packages`, and a minimal `~/.config/opencode/opencode.json` is symlinked from the nix store with `systemd.tmpfiles` — same pattern as the niri/kitty configs.
+
+The generated config sets `username`, `autoupdate = false` (nix owns the version) and `share = "manual"`. It intentionally contains **no model or API key** — authenticate interactively on first run:
+
+```bash
+opencode auth login
+```
+
+Then pick a model in the TUI (`Shift+Tab` to cycle agents, `/model` to switch). The nixpkgs package wraps the binary with `OPENCODE_DISABLE_AUTOUPDATE` already set.
 
 ## References
 
