@@ -1,9 +1,9 @@
-{
+{ config, ... }: {
   hosts.uontabc = {
     system = "x86_64-linux";
     stateVersion = "26.05";
     module =
-      { lib, config, ... }: {
+      { lib, ... }: {
         imports = with config.flake.modules.nixos; [
           boot
           network

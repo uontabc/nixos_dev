@@ -1,9 +1,9 @@
-{
+{ config, ... }: {
   hosts.wsl = {
     system = "x86_64-linux";
     stateVersion = "26.05";
     module =
-      { config, ... }: {
+      { ... }: {
         # `wsl` (modules/wsl.nix) is auto-attached by the host factory via
         # `optional (nixos ? ${name}) nixos.${name}` — the module name matches
         # this hostname. No need to import it here.
