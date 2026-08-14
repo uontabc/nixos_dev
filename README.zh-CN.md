@@ -614,6 +614,8 @@ nix build .#nixosConfigurations.wsl.config.system.build.tarball -o wsl-result
 # 输出：wsl-result/nixos-wsl.tar.gz
 ```
 
+压缩包会**把整个仓库烘焙进 `/etc/nixos`**（`modules/wsl.nix` 里 `wsl.tarball.configPath = ../.`），因此 import 后完整配置已在系统里，无需手动克隆。
+
 ### 安装到 WSL
 
 PowerShell 中：
@@ -624,15 +626,35 @@ wsl --import NixOS $env:USERPROFILE\NixOS wsl-result\nixos-wsl.tar.gz --version 
 wsl -d NixOS
 ```
 
-首次以 `onyx` 登录，密码 `changeme`（与主主机相同初始密码——立即 `passwd` 修改）。然后拉取 flake 照常用 `nh` 管理。
+首次以 `onyx` 登录，密码 `changeme`（与主主机相同初始密码——立即 `passwd` 修改）。
 
-### 在 WSL 内重建
+### 在 WSL 内激活完整配置
+
+导入的系统只运行一个 minimal 引导；完整配置位于 `/etc/nixos` 但还不是当前系统。执行：
 
 ```bash
-cd ~/nixos
-git clone https://github.com/uontabc/nixos_dev.git .   # 首次
-nh os switch        # 读取 NH_FLAKE；自动识别主机名 "wsl"
+# 烘焙的仓库在 /etc/nixos（主机名 "wsl" 无需 NH_FLAKE）
+sudo nixos-rebuild switch --flake /etc/nixos#wsl
 ```
+
+这会启用完整的 `base` 配置（用户 onyx、nix 设置、nh、git 等）。
+
+### 在 WSL 内日常更新
+
+日常使用请在家目录保留一个工作克隆（`/etc/nixos` 里的烘焙副本是静态快照，不是 git 仓库）：
+
+```bash
+mkdir -p ~/nixos
+git clone https://github.com/uontabc/nixos_dev.git ~/nixos
+
+# nh 模块已把 NH_FLAKE 设为 ~/nixos——用 nh 切换：
+nh os switch        # 构建并激活主机 "wsl"
+
+# 或不用 nh：
+sudo nixos-rebuild switch --flake ~/nixos#wsl
+```
+
+重建立即生效；若 systemd 单元卡住，用 `wsl --shutdown` 重启发行版。
 
 ## 参考
 

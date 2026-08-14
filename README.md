@@ -613,6 +613,8 @@ nix build .#nixosConfigurations.wsl.config.system.build.tarball -o wsl-result
 # output: wsl-result/nixos-wsl.tar.gz
 ```
 
+The tarball **bakes in this entire repository** at `/etc/nixos` (`wsl.tarball.configPath = ../.` in `modules/wsl.nix`), so the full configuration is available right after import — no manual cloning needed.
+
 ### Install into WSL
 
 From PowerShell:
@@ -623,15 +625,35 @@ wsl --import NixOS $env:USERPROFILE\NixOS wsl-result\nixos-wsl.tar.gz --version 
 wsl -d NixOS
 ```
 
-First login is as `onyx` with password `changeme` (same initial password as the main host — change it with `passwd` right away). Then pull the flake and manage it with `nh` as usual.
+First login is as `onyx` with password `changeme` (same initial password as the main host — change it with `passwd` right away).
 
-### Rebuild inside WSL
+### Activate the configuration inside WSL
+
+The imported system only runs a minimal bootstrap; the full config is at `/etc/nixos` but is not yet the active system. Activate it with:
 
 ```bash
-cd ~/nixos
-git clone https://github.com/uontabc/nixos_dev.git .   # first time
-nh os switch        # reads NH_FLAKE; hostname "wsl" is auto-detected
+# The baked-in repo lives at /etc/nixos (hostname "wsl" auto-detected from NH_FLAKE not needed here)
+sudo nixos-rebuild switch --flake /etc/nixos#wsl
 ```
+
+This enables the complete `base` profile (user onyx, nix settings, nh, git, etc.) on top of the WSL environment.
+
+### Manage updates from inside WSL
+
+For day-to-day use, keep a working clone in your home directory (the baked-in copy at `/etc/nixos` is a static snapshot and not a git repo):
+
+```bash
+mkdir -p ~/nixos
+git clone https://github.com/uontabc/nixos_dev.git ~/nixos
+
+# NH_FLAKE is already set to ~/nixos by the nh module — switch with nh:
+nh os switch        # builds & activates hostname "wsl"
+
+# or without nh:
+sudo nixos-rebuild switch --flake ~/nixos#wsl
+```
+
+Rebuilds take effect immediately; restart the distro with `wsl --shutdown` if systemd units are stuck.
 
 ## References
 
