@@ -10,6 +10,7 @@
         git
         neovim
         opencode
+        fastfetch
       ];
 
       hardware.enableRedistributableFirmware = true;

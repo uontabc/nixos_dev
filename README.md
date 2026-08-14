@@ -50,7 +50,7 @@ Run `disko --mode format,mount` (never `--mode destroy,...`). It is the single s
     │   ├── default.nix             #     aggregator: audio, display, portal, noctalia, xwayland + config apps
     │   └── audio.nix  display.nix  portal.nix  noctalia.nix  xwayland.nix
     ├── config/                     #   per-app configs (each a named nixos module)
-    │   └── i18n.nix  nix.nix  git.nix  fonts.nix  niri.nix  kitty.nix  qt.nix  opencode.nix
+    │   └── i18n.nix  nix.nix  git.nix  fonts.nix  niri.nix  kitty.nix  qt.nix  opencode.nix  fastfetch.nix
     ├── wsl.nix                     #   NixOS-WSL module (terminal-only WSL distro)
     └── hosts/
         ├── uontabc/

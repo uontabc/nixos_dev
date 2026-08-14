@@ -50,7 +50,7 @@
     │   ├── default.nix             #     聚合：audio, display, portal, noctalia, xwayland + config 应用
     │   └── audio.nix  display.nix  portal.nix  noctalia.nix  xwayland.nix
     ├── config/                     #   各应用配置（每个为具名 nixos 模块）
-    │   └── i18n.nix  nix.nix  git.nix  fonts.nix  niri.nix  kitty.nix  qt.nix  opencode.nix
+    │   └── i18n.nix  nix.nix  git.nix  fonts.nix  niri.nix  kitty.nix  qt.nix  opencode.nix  fastfetch.nix
     ├── wsl.nix                     #   NixOS-WSL 模块（终端型 WSL 发行版）
     └── hosts/
         ├── uontabc/
