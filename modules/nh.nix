@@ -1,15 +1,13 @@
 {
   flake.modules.nixos.nh =
-    { config, lib, ... }:
+    { config, ... }:
     let
       home = "/home/${config.my.name}";
     in
     {
       programs.nh = {
         enable = true;
-        # Sets NH_FLAKE so `nh os switch` works without arguments.
-        # Repo lives at ~/nixos_dev (matches the GitHub repo name).
-        flake = lib.mkDefault "${home}/nixos_dev";
+        flake = "${home}/nixos";
         clean = {
           enable = true;
           dates = "weekly";

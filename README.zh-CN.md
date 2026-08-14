@@ -50,7 +50,7 @@
     │   ├── default.nix             #     聚合：audio, display, portal, noctalia, xwayland + config 应用
     │   └── audio.nix  display.nix  portal.nix  noctalia.nix  xwayland.nix
     ├── config/                     #   各应用配置（每个为具名 nixos 模块）
-    │   └── i18n.nix  nix.nix  git.nix  fonts.nix  niri.nix  kitty.nix  qt.nix  opencode.nix
+    │   └── i18n.nix  nix.nix  git.nix  fonts.nix  niri.nix  kitty.nix  qt.nix
     ├── wsl.nix                     #   NixOS-WSL 模块（终端型 WSL 发行版）
     └── hosts/
         ├── uontabc/
@@ -404,21 +404,21 @@ sudo nix-shell -p os-prober -c os-prober
 
 #### 4.7 把仓库搬到永久位置并固定 NH_FLAKE
 
-`nh` 通过 `NH_FLAKE` 找 flake（`modules/nh.nix` 中设为 `/home/onyx/nixos_dev`，与仓库名一致）。把仓库 clone 到该确切路径，`nh os switch` 即可零参数运行：
+`nh` 通过 `NH_FLAKE` 找 flake（`modules/nh.nix` 中设为 `/home/onyx/nixos`）：
 
 ```bash
 cd ~
-git clone https://github.com/uontabc/nixos_dev.git nixos_dev
-cd nixos_dev
+git clone https://github.com/uontabc/nixos_dev.git nixos
+cd nixos
 
-echo $NH_FLAKE           # 应输出：/home/onyx/nixos_dev
+echo $NH_FLAKE           # 应输出：/home/onyx/nixos
 nh os info               # 应打印当前系统信息
 ```
 
 #### 4.8 通过 nh 应用更新
 
 ```bash
-cd ~/nixos_dev
+cd ~/nixos
 nix flake update          # 更新 flake.lock 至最新 nixpkgs-26.05
 nh os switch              # 构建 + 激活
 ```
@@ -440,7 +440,7 @@ sudo umount /mnt
 ### 更新 Flake 输入
 
 ```bash
-cd ~/nixos_dev               # 仓库克隆位置
+cd ~/nixos               # 仓库克隆位置
 nix flake update         # 更新 flake.lock
 nh os switch             # 构建并激活
 ```
@@ -614,8 +614,6 @@ nix build .#nixosConfigurations.wsl.config.system.build.tarball -o wsl-result
 # 输出：wsl-result/nixos-wsl.tar.gz
 ```
 
-压缩包会**把整个仓库烘焙进 `/etc/nixos`**（`modules/wsl.nix` 里 `wsl.tarball.configPath = ../.`），因此 import 后完整配置已在系统里，无需手动克隆。
-
 ### 安装到 WSL
 
 PowerShell 中：
@@ -626,81 +624,15 @@ wsl --import NixOS $env:USERPROFILE\NixOS wsl-result\nixos-wsl.tar.gz --version 
 wsl -d NixOS
 ```
 
-首次以 `onyx` 登录，密码 `changeme`（与主主机相同初始密码——立即 `passwd` 修改）。
+首次以 `onyx` 登录，密码 `changeme`（与主主机相同初始密码——立即 `passwd` 修改）。然后拉取 flake 照常用 `nh` 管理。
 
-### 在 WSL 内激活完整配置
-
-导入的系统只运行一个 minimal 引导；完整配置位于 `/etc/nixos` 但还不是当前系统。执行：
+### 在 WSL 内重建
 
 ```bash
-# 烘焙的仓库在 /etc/nixos（主机名 "wsl" 无需 NH_FLAKE）
-sudo nixos-rebuild switch --flake /etc/nixos#wsl
+cd ~/nixos
+git clone https://github.com/uontabc/nixos_dev.git .   # 首次
+nh os switch        # 读取 NH_FLAKE；自动识别主机名 "wsl"
 ```
-
-这会启用完整的 `base` 配置（用户 onyx、nix 设置、nh、git 等）。
-
-> **仅首次重建**——Nix 会警告 `ignoring untrusted flake configuration setting 'substituters'`，因为系统配置设置 `accept-flake-config` 之前，flake 的 `nixConfig` 不受信任。一次性接受：
-
-> ```bash
-> sudo nixos-rebuild switch --flake /etc/nixos#wsl --accept-flake-config
-> # 或：echo 'accept-flake-config = true' | sudo tee -a /etc/nix/nix.conf
-> ```
-
-> 这次重建后，`modules/config/nix.nix` 会自己设置 `nix.settings.accept-flake-config`，警告不会再出现。
-
-### 在 WSL 内日常更新
-
-日常使用请在家目录保留一个工作克隆（`/etc/nixos` 里的烘焙副本是静态快照，不是 git 仓库）：
-
-```bash
-mkdir -p ~/nixos_dev
-git clone https://github.com/uontabc/nixos_dev.git ~/nixos_dev
-
-# nh 模块已把 NH_FLAKE 设为 ~/nixos_dev——用 nh 切换：
-nh os switch        # 构建并激活主机 "wsl"
-
-# 或不用 nh：
-sudo nixos-rebuild switch --flake ~/nixos_dev#wsl
-```
-
-重建立即生效；若 systemd 单元卡住，用 `wsl --shutdown` 重启发行版。
-
-### WSL：Windows Terminal 里 nvim 图标缺失
-
-在 **Windows Terminal** 里跑 WSL 的 nvim 时，字形（lualine/nvim-tree 图标）来自 **Windows 侧**字体，与 NixOS 无关。在 Windows 上装补丁字体（如 [JetBrainsMono Nerd Font](https://www.nerdfonts.com/font-downloads)），并在 Windows Terminal 里设置：*设置 → 你的配置文件 → 外观 → 字体 → `JetBrainsMono Nerd Font`*。
-
-（NixOS 侧 `base` 已装 `nerd-fonts.jetbrains-mono`，WSLg 下的 GUI 应用如 kitty 渲染正常。）
-
-### 故障排查：root 权限 / 忘记密码
-
-NixOS-WSL 构建根文件系统时使用 `--no-root-passwd`，所以 **root 无密码**，`sudo` 要求输入**当前用户**的密码（onyx / `changeme`，改过就用自己的）。若忘记用户密码或需要 root，无需 sudo：
-
-```powershell
-# Windows PowerShell 中——直接以 root 进入发行版，无需密码：
-wsl -d NixOS -u root
-```
-
-然后在 root shell 中：
-
-```bash
-passwd root          # 设置 root 密码（可选）
-passwd onyx          # 重置 onyx 密码
-nixos-rebuild switch --flake /home/onyx/nixos_dev#wsl
-```
-
-注意 `nixos-rebuild switch` 必须 root 运行：nix store 由 nix daemon 写入（普通用户可构建），但最后一步 `nix-env --set` 写 `/nix/var/nix/profiles/system` 需要 root（用 `sudo nixos-rebuild switch` 或上面的 root shell）。
-
-## opencode
-
-[opencode](https://opencode.ai)（AI 编码代理）通过 `base` 装到每台主机（`modules/config/opencode.nix`）：`pkgs.opencode` 进 `my.packages`，最小化的 `~/.config/opencode/opencode.json` 由 `systemd.tmpfiles` 从 nix store 软链接——与 niri/kitty 配置同款模式。
-
-生成的配置设置了 `username`、`autoupdate = false`（版本由 nix 管理）和 `share = "manual"`。**刻意不含模型或 API key**——首次运行交互式认证：
-
-```bash
-opencode auth login
-```
-
-然后在 TUI 里选模型（`Shift+Tab` 切换 agent，`/model` 切换模型）。nixpkgs 的包已给二进制包装好 `OPENCODE_DISABLE_AUTOUPDATE`。
 
 ## 参考
 

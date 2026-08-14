@@ -50,7 +50,7 @@ Run `disko --mode format,mount` (never `--mode destroy,...`). It is the single s
     │   ├── default.nix             #     aggregator: audio, display, portal, noctalia, xwayland + config apps
     │   └── audio.nix  display.nix  portal.nix  noctalia.nix  xwayland.nix
     ├── config/                     #   per-app configs (each a named nixos module)
-    │   └── i18n.nix  nix.nix  git.nix  fonts.nix  niri.nix  kitty.nix  qt.nix  opencode.nix
+    │   └── i18n.nix  nix.nix  git.nix  fonts.nix  niri.nix  kitty.nix  qt.nix
     ├── wsl.nix                     #   NixOS-WSL module (terminal-only WSL distro)
     └── hosts/
         ├── uontabc/
@@ -403,21 +403,21 @@ Re-run `nh os switch` so GRUB regenerates with the Windows entry baked in (you m
 
 #### 4.7 Move the repo to its permanent location and pin NH_FLAKE
 
-`nh` reads `NH_FLAKE` (set to `/home/onyx/nixos_dev` in `modules/nh.nix`, matching the repo name). Clone the repo to that exact path so `nh os switch` works with no arguments:
+`nh` reads `NH_FLAKE` (set to `/home/onyx/nixos` in `modules/nh.nix`):
 
 ```bash
 cd ~
-git clone https://github.com/uontabc/nixos_dev.git nixos_dev
-cd nixos_dev
+git clone https://github.com/uontabc/nixos_dev.git nixos
+cd nixos
 
-echo $NH_FLAKE           # Should print: /home/onyx/nixos_dev
+echo $NH_FLAKE           # Should print: /home/onyx/nixos
 nh os info               # Should print info about the current system
 ```
 
 #### 4.8 Apply updates via nh
 
 ```bash
-cd ~/nixos_dev
+cd ~/nixos
 nix flake update          # update flake.lock to latest nixpkgs-26.05
 nh os switch              # build + activate
 ```
@@ -439,7 +439,7 @@ Rebuild without the script; impermanence's bind-mounts from `/persist` still wor
 ### Update the flake inputs
 
 ```bash
-cd ~/nixos_dev
+cd ~/nixos
 nix flake update         # update flake.lock
 nh os switch             # build and activate
 ```
@@ -613,8 +613,6 @@ nix build .#nixosConfigurations.wsl.config.system.build.tarball -o wsl-result
 # output: wsl-result/nixos-wsl.tar.gz
 ```
 
-The tarball **bakes in this entire repository** at `/etc/nixos` (`wsl.tarball.configPath = ../.` in `modules/wsl.nix`), so the full configuration is available right after import — no manual cloning needed.
-
 ### Install into WSL
 
 From PowerShell:
@@ -625,81 +623,15 @@ wsl --import NixOS $env:USERPROFILE\NixOS wsl-result\nixos-wsl.tar.gz --version 
 wsl -d NixOS
 ```
 
-First login is as `onyx` with password `changeme` (same initial password as the main host — change it with `passwd` right away).
+First login is as `onyx` with password `changeme` (same initial password as the main host — change it with `passwd` right away). Then pull the flake and manage it with `nh` as usual.
 
-### Activate the configuration inside WSL
-
-The imported system only runs a minimal bootstrap; the full config is at `/etc/nixos` but is not yet the active system. Activate it with:
+### Rebuild inside WSL
 
 ```bash
-# The baked-in repo lives at /etc/nixos (hostname "wsl" auto-detected from NH_FLAKE not needed here)
-sudo nixos-rebuild switch --flake /etc/nixos#wsl
+cd ~/nixos
+git clone https://github.com/uontabc/nixos_dev.git .   # first time
+nh os switch        # reads NH_FLAKE; hostname "wsl" is auto-detected
 ```
-
-This enables the complete `base` profile (user onyx, nix settings, nh, git, etc.) on top of the WSL environment.
-
-> **First rebuild only** — Nix will warn `ignoring untrusted flake configuration setting 'substituters'` because the flake's `nixConfig` is untrusted until the system config sets `accept-flake-config`. Accept it once:
-
-> ```bash
-> sudo nixos-rebuild switch --flake /etc/nixos#wsl --accept-flake-config
-> # or: echo 'accept-flake-config = true' | sudo tee -a /etc/nix/nix.conf
-> ```
-
-> After that rebuild, `modules/config/nix.nix` sets `nix.settings.accept-flake-config` itself and the warning never comes back.
-
-### Manage updates from inside WSL
-
-For day-to-day use, keep a working clone in your home directory (the baked-in copy at `/etc/nixos` is a static snapshot and not a git repo):
-
-```bash
-mkdir -p ~/nixos_dev
-git clone https://github.com/uontabc/nixos_dev.git ~/nixos_dev
-
-# NH_FLAKE is already set to ~/nixos_dev by the nh module — switch with nh:
-nh os switch        # builds & activates hostname "wsl"
-
-# or without nh:
-sudo nixos-rebuild switch --flake ~/nixos_dev#wsl
-```
-
-Rebuilds take effect immediately; restart the distro with `wsl --shutdown` if systemd units are stuck.
-
-### WSL: nvim icons are missing in Windows Terminal
-
-When you run nvim inside WSL from **Windows Terminal**, glyphs (lualine/nvim-tree icons) come from the *Windows* side font, not from NixOS. Install a patched font on Windows (e.g. [JetBrainsMono Nerd Font](https://www.nerdfonts.com/font-downloads)) and set it in Windows Terminal: *Settings → your profile → Appearance → Font face → `JetBrainsMono Nerd Font`*.
-
-(The NixOS side already ships `nerd-fonts.jetbrains-mono` in `base`, so GUI apps under WSLg — e.g. kitty — render correctly.)
-
-### Troubleshooting: root access / forgotten password
-
-NixOS-WSL builds the root filesystem with `--no-root-passwd`, so **root has no password** and `sudo` asks for the *user's* password (onyx / `changeme` until you change it). If you forgot the user password, or need root without sudo:
-
-```powershell
-# From Windows PowerShell — enter the distro as root, no password needed:
-wsl -d NixOS -u root
-```
-
-Then, in the root shell:
-
-```bash
-passwd root          # set a root password (optional)
-passwd onyx          # reset the onyx password
-nixos-rebuild switch --flake /home/onyx/nixos_dev#wsl
-```
-
-Note that `nixos-rebuild switch` must run as root: the store is written by the nix daemon (user builds work), but the final `nix-env --set` to `/nix/var/nix/profiles/system` requires root (`sudo nixos-rebuild switch` or the root shell above).
-
-## opencode
-
-[opencode](https://opencode.ai) (the AI coding agent) is installed on every host via `base` (`modules/config/opencode.nix`): `pkgs.opencode` goes into `my.packages`, and a minimal `~/.config/opencode/opencode.json` is symlinked from the nix store with `systemd.tmpfiles` — same pattern as the niri/kitty configs.
-
-The generated config sets `username`, `autoupdate = false` (nix owns the version) and `share = "manual"`. It intentionally contains **no model or API key** — authenticate interactively on first run:
-
-```bash
-opencode auth login
-```
-
-Then pick a model in the TUI (`Shift+Tab` to cycle agents, `/model` to switch). The nixpkgs package wraps the binary with `OPENCODE_DISABLE_AUTOUPDATE` already set.
 
 ## References
 

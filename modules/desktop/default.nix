@@ -10,6 +10,7 @@
         niri
         kitty
         qt
+        fonts
       ];
 
       my.packages = with pkgs; [
