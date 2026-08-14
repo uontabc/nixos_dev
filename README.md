@@ -33,24 +33,27 @@ Run `disko --mode format,mount` (never `--mode destroy,...`). It is the single s
 ├── flake.nix                       # Minimal entry: import-tree auto-imports ./modules/
 └── modules/                        # All flake-parts + NixOS modules (no home-manager)
     ├── systems.nix                 #   systems list
-    ├── flake-parts.nix             #   perSystem config (unfree, overlays)
+    ├── flake-parts.nix             #   perSystem config (unfree)
     ├── lib/nixos.nix               #   host factory: options.hosts → nixosConfigurations
     ├── users.nix                   #   my.name / my.packages options + user creation
-    ├── base.nix                    #   aggregator: users, nix, i18n, env, nh, git, xwayland
+    ├── base.nix                    #   base: users, nix, i18n, env, nh, git
     ├── boot.nix                    #   GRUB + os-prober + btrfs/ntfs
     ├── network.nix                 #   NetworkManager + openssh
     ├── env.nix                     #   XDG session variables
     ├── nh.nix                      #   nh CLI + weekly GC
-    ├── xwayland.nix                #   xwayland-satellite in PATH (niri auto-spawns it)
-    ├── hardware.nix                 #   aggregator: cpu-amd, nvidia, graphics, bluetooth, input
-    ├── cpu-amd.nix  nvidia.nix  graphics.nix  bluetooth.nix  input.nix
-    ├── desktop.nix                 #   aggregator: audio, display, portal, noctalia, niri, kitty, qt, fonts
-    ├── audio.nix  display.nix  portal.nix  noctalia.nix
     ├── impermanence.nix            #   persistent state via /persist bind-mounts
+    ├── disko.nix                   #   disko module wrapper
+    ├── hardware/                   #   hardware drivers
+    │   ├── default.nix             #     aggregator: cpu-amd, nvidia, graphics, bluetooth, input
+    │   └── cpu-amd.nix  nvidia.nix  graphics.nix  bluetooth.nix  input.nix
+    ├── desktop/                    #   desktop services
+    │   ├── default.nix             #     aggregator: audio, display, portal, noctalia, xwayland + config apps
+    │   └── audio.nix  display.nix  portal.nix  noctalia.nix  xwayland.nix
     ├── config/                     #   per-app configs (each a named nixos module)
-    │   ├── i18n.nix  nix.nix  git.nix  fonts.nix
-    │   ├── niri.nix  kitty.nix  qt.nix
-    └── hosts/uontabc/default.nix   #   hosts.uontabc = { system, stateVersion, module }
+    │   └── i18n.nix  nix.nix  git.nix  fonts.nix  niri.nix  kitty.nix  qt.nix
+    └── hosts/uontabc/
+        ├── default.nix             #   hosts.uontabc = { system, stateVersion, module }
+        └── disko.nix               #   flake.modules.nixos.uontabc.disko.devices
 ```
 
 Built with [flake-parts](https://flake.parts) + [import-tree](https://github.com/vic/import-tree): every `.nix` file under `modules/` is auto-imported — no `default.nix` aggregates. Each module declares `flake.modules.nixos.<name>` and references others by name, not by path. Inspired by [ocfox/island](https://github.com/ocfox/island).
@@ -64,8 +67,8 @@ User-level configuration is managed entirely within NixOS modules:
 
 | Component | Assumed | Adjust in |
 |---|---|---|
-| CPU | AMD Ryzen 9 8940HX (Zen 4, Dragon Range) | `modules/cpu-amd.nix` |
-| dGPU | NVIDIA RTX 5060 Laptop (Blackwell sm_120) | `modules/nvidia.nix` |
+| CPU | AMD Ryzen 9 8940HX (Zen 4, Dragon Range) | `modules/hardware/cpu-amd.nix` |
+| dGPU | NVIDIA RTX 5060 Laptop (Blackwell sm_120) | `modules/hardware/nvidia.nix` |
 | iGPU | None (HX series ships with disabled/minimal iGPU; dGPU drives displays) | No PRIME config needed |
 | Internal display | eDP-1, 2560×1600 @ 240 Hz | `modules/config/niri.nix` `output` block |
 | External display | DP-1, 2560×1440 @ 210 Hz | same |
@@ -384,7 +387,7 @@ cat /sys/module/nvidia_drm/parameters/modeset
 # Expect: Y
 ```
 
-If `nvidia-smi` fails, confirm `hardware.nvidia.open = true` in `modules/nvidia.nix` and check `dmesg | grep -i nvidia`.
+If `nvidia-smi` fails, confirm `hardware.nvidia.open = true` in `modules/hardware/nvidia.nix` and check `dmesg | grep -i nvidia`.
 
 #### 4.5 Verify external display (DP-1)
 
@@ -554,7 +557,7 @@ Convert the hexadecimal PCI addresses to NixOS format (decimal `bus:device.funct
 | `00:02.0` | `PCI:0:2:0` |
 | `01:00.0` | `PCI:1:0:0` |
 
-Edit `modules/nvidia.nix`:
+Edit `modules/hardware/nvidia.nix`:
 
 ```nix
 hardware.nvidia.prime = {

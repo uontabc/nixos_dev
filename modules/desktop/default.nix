@@ -6,11 +6,11 @@
         display
         portal
         noctalia
+        xwayland
         niri
         kitty
         qt
         fonts
-        xwayland
       ];
 
       my.packages = with pkgs; [

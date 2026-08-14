@@ -16,48 +16,6 @@
         boot.initrd.availableKernelModules = [ "xhci_pci" "nvme" "usb_storage" "sd_mod" ];
         swapDevices = [ ];
 
-        # disko auto-injects fileSystems.* from the device declarations below.
-        # It only touches /dev/disk/by-partlabel/nixos-* (Windows partitions
-        # untouched), is idempotent (blkid / btrfs subvolume show guards), and
-        # every block has destroy = false so even --mode destroy refuses to
-        # wipe them. Run `disko --mode format,mount` after manual parted.
-        disko.devices.disk = {
-          nixos-esp = {
-            type = "disk";
-            device = "/dev/disk/by-partlabel/nixos-esp";
-            destroy = false;
-            content = {
-              type = "filesystem";
-              format = "vfat";
-              mountpoint = "/boot";
-              mountOptions = [ "umask=0077" "defaults" ];
-            };
-          };
-          nixos-btrfs = {
-            type = "disk";
-            device = "/dev/disk/by-partlabel/nixos-btrfs";
-            destroy = false;
-            content = {
-              type = "btrfs";
-              extraArgs = [ "-L" "nixos" ];
-              subvolumes = {
-                "root" = {
-                  mountpoint = "/";
-                  mountOptions = [ "compress=zstd" "noatime" "ssd" ];
-                };
-                "nix" = {
-                  mountpoint = "/nix";
-                  mountOptions = [ "compress=zstd" "noatime" "ssd" ];
-                };
-                "persist" = {
-                  mountpoint = "/persist";
-                  mountOptions = [ "compress=zstd" "noatime" "ssd" ];
-                };
-              };
-            };
-          };
-        };
-
         # disko does not set neededForBoot on generated mounts; stage-1 needs
         # /persist (impermanence bind-mounts from it in the initrd).
         fileSystems."/persist".neededForBoot = true;

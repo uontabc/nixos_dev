@@ -33,24 +33,27 @@
 ├── flake.nix                       # 最小入口：import-tree 自动导入 ./modules/
 └── modules/                        # 所有 flake-parts + NixOS 模块（无 home-manager）
     ├── systems.nix                 #   systems 列表
-    ├── flake-parts.nix             #   perSystem 配置（unfree、overlays）
+    ├── flake-parts.nix             #   perSystem 配置（unfree）
     ├── lib/nixos.nix               #   主机工厂：options.hosts → nixosConfigurations
     ├── users.nix                   #   my.name / my.packages 选项 + 用户创建
-    ├── base.nix                    #   聚合：users, nix, i18n, env, nh, git, xwayland
+    ├── base.nix                    #   base：users, nix, i18n, env, nh, git
     ├── boot.nix                    #   GRUB + os-prober + btrfs/ntfs
     ├── network.nix                 #   NetworkManager + openssh
     ├── env.nix                     #   XDG 会话变量
     ├── nh.nix                      #   nh CLI + 每周 GC
-    ├── xwayland.nix                #   xwayland-satellite 放入 PATH（niri 自动按需启动）
-    ├── hardware.nix                #   聚合：cpu-amd, nvidia, graphics, bluetooth, input
-    ├── cpu-amd.nix  nvidia.nix  graphics.nix  bluetooth.nix  input.nix
-    ├── desktop.nix                 #   聚合：audio, display, portal, noctalia, niri, kitty, qt, fonts
-    ├── audio.nix  display.nix  portal.nix  noctalia.nix
     ├── impermanence.nix            #   通过 /persist bind-mount 持久化状态
+    ├── disko.nix                   #   disko 模块 wrapper
+    ├── hardware/                   #   硬件驱动
+    │   ├── default.nix             #     聚合：cpu-amd, nvidia, graphics, bluetooth, input
+    │   └── cpu-amd.nix  nvidia.nix  graphics.nix  bluetooth.nix  input.nix
+    ├── desktop/                    #   桌面服务
+    │   ├── default.nix             #     聚合：audio, display, portal, noctalia, xwayland + config 应用
+    │   └── audio.nix  display.nix  portal.nix  noctalia.nix  xwayland.nix
     ├── config/                     #   各应用配置（每个为具名 nixos 模块）
-    │   ├── i18n.nix  nix.nix  git.nix  fonts.nix
-    │   ├── niri.nix  kitty.nix  qt.nix
-    └── hosts/uontabc/default.nix   #   hosts.uontabc = { system, stateVersion, module }
+    │   └── i18n.nix  nix.nix  git.nix  fonts.nix  niri.nix  kitty.nix  qt.nix
+    └── hosts/uontabc/
+        ├── default.nix             #   hosts.uontabc = { system, stateVersion, module }
+        └── disko.nix               #   flake.modules.nixos.uontabc.disko.devices
 ```
 
 基于 [flake-parts](https://flake.parts) + [import-tree](https://github.com/vic/import-tree)：`modules/` 下的每个 `.nix` 文件自动导入——无需 `default.nix` 汇总。各模块声明 `flake.modules.nixos.<name>`，按名称引用其他模块而非路径。参考 [ocfox/island](https://github.com/ocfox/island)。
@@ -64,8 +67,8 @@
 
 | 组件 | 假设 | 修改位置 |
 |---|---|---|
-| CPU | AMD Ryzen 9 8940HX (Zen 4, Dragon Range) | `modules/cpu-amd.nix` |
-| dGPU | NVIDIA RTX 5060 Laptop（Blackwell sm_120） | `modules/nvidia.nix` |
+| CPU | AMD Ryzen 9 8940HX (Zen 4, Dragon Range) | `modules/hardware/cpu-amd.nix` |
+| dGPU | NVIDIA RTX 5060 Laptop（Blackwell sm_120） | `modules/hardware/nvidia.nix` |
 | iGPU | 无（HX 系列 iGPU 禁用/极简，dGPU 直接驱动显示器） | 无需 PRIME 配置 |
 | 内屏 | eDP-1，2560×1600 @ 240 Hz | `modules/config/niri.nix` 的 `output` 节点 |
 | 外屏 | DP-1，2560×1440 @ 210 Hz | 同上 |
@@ -385,7 +388,7 @@ cat /sys/module/nvidia_drm/parameters/modeset
 # 预期：Y
 ```
 
-若 `nvidia-smi` 失败，确认 `modules/nvidia.nix` 中 `hardware.nvidia.open = true`，并查 `dmesg | grep -i nvidia`。
+若 `nvidia-smi` 失败，确认 `modules/hardware/nvidia.nix` 中 `hardware.nvidia.open = true`，并查 `dmesg | grep -i nvidia`。
 
 #### 4.5 验证外屏（DP-1）
 
@@ -555,7 +558,7 @@ lspci -nn | grep -E 'VGA|3D'
 | `00:02.0` | `PCI:0:2:0` |
 | `01:00.0` | `PCI:1:0:0` |
 
-编辑 `modules/nvidia.nix`：
+编辑 `modules/hardware/nvidia.nix`：
 
 ```nix
 hardware.nvidia.prime = {
