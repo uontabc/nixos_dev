@@ -36,7 +36,6 @@
             ".local/share"
             ".gnupg"
           ];
-          allowOther = true;
         };
       };
     };

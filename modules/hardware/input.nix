@@ -3,10 +3,9 @@
     services.libinput = {
       enable = true;
       touchpad = {
-        enable = true;
         tapping = true;
-        tapButtonMap = "lrm";
-        dragLock = true;
+        tappingButtonMap = "lrm";
+        tappingDragLock = true;
         disableWhileTyping = true;
         naturalScrolling = false;
         middleEmulation = false;

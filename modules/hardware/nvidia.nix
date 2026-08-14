@@ -8,7 +8,7 @@
         open = true;
         package = config.boot.kernelPackages.nvidiaPackages.stable;
         powerManagement.enable = true;
-        powerManagement.finegrained = true;
+        powerManagement.finegrained = config.hardware.nvidia.prime.offload.enable;
         nvidiaSettings = true;
       };
 

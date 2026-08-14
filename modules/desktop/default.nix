@@ -18,7 +18,6 @@
         superfile
         satty
         wl-clipboard
-        qt6ct
         networkmanagerapplet
         brightnessctl
         polkit_gnome

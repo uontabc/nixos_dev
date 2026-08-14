@@ -6,7 +6,5 @@
         noto-fonts-cjk-sans
         noto-fonts-emoji
       ];
-
-      fonts.fontconfig.defaultLocale = "zh_CN";
     };
 }

@@ -9,12 +9,12 @@
         nh
         git
         opencode
+        neovim
       ];
 
       hardware.enableRedistributableFirmware = true;
 
       environment.systemPackages = with pkgs; [
-        vim
         wget
         curl
         htop
