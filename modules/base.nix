@@ -11,6 +11,7 @@
         neovim
         opencode
         fastfetch
+        zsh
       ];
 
       hardware.enableRedistributableFirmware = true;
