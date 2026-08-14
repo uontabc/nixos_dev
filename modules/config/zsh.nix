@@ -5,7 +5,7 @@
       home = "/home/${config.my.name}";
 
       starshipConfig = pkgs.writeText "starship.toml" ''
-        format = "$directory$git_branch$character"
+        format = "$directory$git_branch$git_status$character"
 
         [directory]
         truncation_length = 3
@@ -14,9 +14,22 @@
         format = "[$path]($style)"
 
         [git_branch]
-        symbol = ""
+        symbol = "|"
         style = "bold purple"
-        format = '[\($branch\)]($style)'
+        format = "[$symbol$branch]($style)"
+
+        [git_status]
+        style = "bold bright-yellow"
+        format = "[$all_status$ahead_behind]($style)"
+        ahead = ">"
+        behind = "<"
+        diverged = "<>"
+        staged = "+"
+        modified = "*"
+        deleted = "-"
+        renamed = "~"
+        untracked = "?"
+        conflicted = "!"
 
         [character]
         format = "$symbol"
