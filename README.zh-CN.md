@@ -404,21 +404,21 @@ sudo nix-shell -p os-prober -c os-prober
 
 #### 4.7 把仓库搬到永久位置并固定 NH_FLAKE
 
-`nh` 通过 `NH_FLAKE` 找 flake（`modules/nh.nix` 中设为 `/home/onyx/nixos`）：
+`nh` 通过 `NH_FLAKE` 找 flake（`modules/nh.nix` 中设为 `/home/onyx/nixos_dev`）：
 
 ```bash
 cd ~
 git clone https://github.com/uontabc/nixos_dev.git nixos
 cd nixos
 
-echo $NH_FLAKE           # 应输出：/home/onyx/nixos
+echo $NH_FLAKE           # 应输出：/home/onyx/nixos_dev
 nh os info               # 应打印当前系统信息
 ```
 
 #### 4.8 通过 nh 应用更新
 
 ```bash
-cd ~/nixos
+cd ~/nixos_dev
 nix flake update          # 更新 flake.lock 至最新 nixpkgs-26.05
 nh os switch              # 构建 + 激活
 ```
@@ -440,7 +440,7 @@ sudo umount /mnt
 ### 更新 Flake 输入
 
 ```bash
-cd ~/nixos               # 仓库克隆位置
+cd ~/nixos_dev               # 仓库克隆位置
 nix flake update         # 更新 flake.lock
 nh os switch             # 构建并激活
 ```
@@ -629,7 +629,7 @@ wsl -d NixOS
 ### 在 WSL 内重建
 
 ```bash
-cd ~/nixos
+cd ~/nixos_dev
 git clone https://github.com/uontabc/nixos_dev.git .   # 首次
 nh os switch        # 读取 NH_FLAKE；自动识别主机名 "wsl"
 ```

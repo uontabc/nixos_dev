@@ -403,21 +403,21 @@ Re-run `nh os switch` so GRUB regenerates with the Windows entry baked in (you m
 
 #### 4.7 Move the repo to its permanent location and pin NH_FLAKE
 
-`nh` reads `NH_FLAKE` (set to `/home/onyx/nixos` in `modules/nh.nix`):
+`nh` reads `NH_FLAKE` (set to `/home/onyx/nixos_dev` in `modules/nh.nix`):
 
 ```bash
 cd ~
 git clone https://github.com/uontabc/nixos_dev.git nixos
 cd nixos
 
-echo $NH_FLAKE           # Should print: /home/onyx/nixos
+echo $NH_FLAKE           # Should print: /home/onyx/nixos_dev
 nh os info               # Should print info about the current system
 ```
 
 #### 4.8 Apply updates via nh
 
 ```bash
-cd ~/nixos
+cd ~/nixos_dev
 nix flake update          # update flake.lock to latest nixpkgs-26.05
 nh os switch              # build + activate
 ```
@@ -439,7 +439,7 @@ Rebuild without the script; impermanence's bind-mounts from `/persist` still wor
 ### Update the flake inputs
 
 ```bash
-cd ~/nixos
+cd ~/nixos_dev
 nix flake update         # update flake.lock
 nh os switch             # build and activate
 ```
@@ -628,7 +628,7 @@ First login is as `onyx` with password `changeme` (same initial password as the 
 ### Rebuild inside WSL
 
 ```bash
-cd ~/nixos
+cd ~/nixos_dev
 git clone https://github.com/uontabc/nixos_dev.git .   # first time
 nh os switch        # reads NH_FLAKE; hostname "wsl" is auto-detected
 ```
