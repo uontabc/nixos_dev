@@ -10,6 +10,7 @@
 - nixpkgs 分支：`nixos-26.05`
 - 系统 Nix：**Lix**（来自 nixpkgs）
 - 包管理辅助：**nh**（`nh os switch` / `nh clean`）
+- 密钥管理：**vaultix**（age 加密的声明式 secrets，见第 7 节）
 
 ---
 
@@ -17,10 +18,13 @@
 
 ```
 nixos_dev/
-├── flake.nix              # Flake 入口：输入源定义（nixpkgs、flake-parts、disko、impermanence、nixvim、noctalia、nixos-wsl）
+├── flake.nix              # Flake 入口：输入源定义（nixpkgs、flake-parts、disko、impermanence、nixvim、noctalia、nixos-wsl、vaultix）
 ├── flake.lock             # 依赖锁定文件
+├── secrets/               # vaultix 密钥仓库（见第 7 节）
+│   ├── *.age              # age 加密的 secret 文件（进入 git）
+│   └── cache/<host>/      # renc 生成的主机级重加密产物（进入 git）
 └── modules/
-    ├── base.nix           # 所有主机共用的基础模块（用户、Nix、i18n、nh、编辑器、shell 等）
+    ├── base.nix           # 所有主机共用的基础模块（用户、Nix、i18n、nh、vaultix、编辑器、shell 等）
     ├── users.nix          # 用户定义（默认用户名 onyx），含 my.name / my.packages 自定义选项
     ├── nix.nix            # Lix、国内镜像源（USTC/SJTU）、Flake 实验特性
     ├── env.nix             # 全局环境变量（Wayland、XDG）
@@ -30,9 +34,10 @@ nixos_dev/
     ├── impermanence.nix    # /persist 持久化目录/文件清单
     ├── disko.nix           # 引入 disko 的 NixOS 模块（分区/文件系统定义）
     ├── wsl.nix             # NixOS-WSL 模块（host: wsl 专用）
+    ├── vaultix.nix         # vaultix flake 模块：identity、secrets 目录、NixOS 模块接入
     ├── flake-parts.nix     # flake-parts 接入、pkgs 构造（允许 unfree）
     ├── systems.nix         # 支持的平台（x86_64-linux）
-    ├── lib/nixos.nix       # host 工厂：由 modules/hosts/* 自动生成 nixosConfigurations
+    ├── lib/nixos.nix       # host 工厂：由 modules/hosts/* 自动生成 nixosConfigurations（含 vaultix 所需的 specialArgs.self）
     ├── config/             # 各软件配置：niri、kitty、neovim、opencode、zsh、fastfetch、git、fonts、qt、i18n、nix
     ├── desktop/            # 桌面相关：niri、greetd、pipewire、xdg-portal、noctalia、xwayland、字体
     ├── hardware/           # 硬件相关：AMD CPU、NVIDIA、显卡、蓝牙、输入
@@ -45,7 +50,7 @@ nixos_dev/
 
 - **仓库路径固定为 `~/nixos_dev`**：`nh.nix` 中 `programs.nh.flake` 硬编码了 `/home/<用户>/nixos_dev`，克隆时请保持这个路径，否则 `nh` 会失效。
 - **用户名默认 `onyx`**：如需修改，改 `modules/users.nix` 里的 `my.name`（同时注意 `impermanence.nix`、`zsh.nix`、`niri.nix` 等模块中用 `config.my.name` 动态生成路径，改一处即可全局生效）。
-- **初始密码 `changeme`**：首次登录后请立即修改。
+- **密码为声明式 `hashedPassword`**：密码以 sha-512 hash 形式写在 `modules/users.nix`（当前为 `uontabc` 的 hash）。改密码只需更新该 hash 后 `nh os switch`，无需在系统里跑 `passwd`（`/` 每次开机回滚，非声明式的改动会丢失）。
 - **国内镜像源**已内置：`mirrors.ustc.edu.cn` 和 `mirror.sjtu.edu.cn` 优先，`cache.nixos.org` 兜底（已配置对应的 trusted public key，无需手动信任）。
 
 ---
@@ -83,7 +88,7 @@ substituters = https://mirrors.ustc.edu.cn/nix-channels/store https://cache.nixo
 experimental-features = nix-command flakes
 ```
 
-> 系统装好后，`modules/config/nix.nix` 已经把这些源写死在配置里，无需重复配置。
+> 系统装好后，`modules/nix.nix` 已经把这些源写死在配置里，无需重复配置。
 
 ### 3.3 克隆配置仓库
 
@@ -184,21 +189,20 @@ reboot
 
 1. GRUB 菜单出现，选择 NixOS 进入。
 2. **根文件系统回滚**：initrd 中有一个 `impermanence-rollback` systemd 服务（`modules/hosts/uontabc/default.nix`），首次启动时若不存在 `@root-blank`，会把当前 `root` 子卷快照为 `@root-blank` 作为"出厂模板"；此后每次开机都会把 `/` 回滚到该模板。**这意味着 `/` 上的一切改动（除非在 /persist）都会在重启后消失**——这是设计使然。
-3. 通过 greetd + tuigreet 的 TUI 登录界面登录用户 `onyx`，初始密码：`changeme`。
+3. 通过 greetd + tuigreet 的 TUI 登录界面登录用户 `onyx`，密码即 `modules/users.nix` 中 `hashedPassword` 对应的密码（当前为 `uontabc`）。
 
 **首次登录后必做：**
 
 ```bash
-# 1. 修改密码（不会持久化的密码在重启后会回滚丢失，所以必须改）
-passwd
-
-# 2. 配置 SSH 公钥（SSH 已禁用密码登录）
+# 1. 配置 SSH 公钥（SSH 已禁用密码登录）
 mkdir -p ~/.ssh && chmod 700 ~/.ssh
 vim ~/.ssh/authorized_keys   # 粘贴你的公钥，保存后会自动持久化
 
-# 3. （可选）确认挂载
+# 2. （可选）确认挂载
 findmnt / /nix /persist
 ```
+
+> 想改密码：在任意机器上运行 `mkpasswd -m sha-512` 生成新 hash，替换 `modules/users.nix` 中的 `hashedPassword` 后 `nh os switch`，用新密码登录验证即可。
 
 持久化清单见 `modules/impermanence.nix`：`/var/lib/nixos`、`/var/lib/systemd`、`/var/lib/NetworkManager`、`/var/log`、`/etc/ssh/ssh_host_*_key`、`/etc/machine-id`，以及用户目录下的 `Documents`、`Downloads`、`.ssh`、`.gnupg`、`.local/share`、`Projects` 等。
 
@@ -233,7 +237,7 @@ wsl --import NixOS C:\NixOS C:\NixOS\nixos-wsl.tar.gz
 wsl -d NixOS
 ```
 
-首次登录用户为 `onyx`，初始密码 `changeme`，同样记得 `passwd`。
+首次登录用户为 `onyx`，密码即配置中的 `hashedPassword` 对应密码（当前为 `uontabc`）。
 
 ### 4.3 在 WSL 内更新配置
 
@@ -277,9 +281,102 @@ sudo nixos-rebuild switch --flake /home/onyx/nixos_dev#uontabc --rollback
 
 ---
 
-## 6. 常见问题与排错
+## 6. 密钥管理（vaultix）
 
-### 6.1 开机卡在滚动根目录 / 想回到"出厂状态"
+本仓库用 [vaultix](https://milieuim.github.io/vaultix/) 做声明式 secrets 管理（age 加密，思路类似 sops-nix / agenix-rekey）。整体依赖链：
+
+```
+你（age identity，仓库外）                ～～明文只在编辑/重加密时于本地短暂存在～～
+   │ nix run .#vaultix...edit / renc
+   ▼
+secrets/*.age（age 加密，进 git）
+   │ renc 按主机重加密
+   ▼
+secrets/cache/<host>/<hash>（进 git，随 flake 分发）
+   │ 主机开机时由系统里的 vaultix 解密单元处理
+   ▼
+/run/vaultix/<name>（root 可见的明文，仅在内存/运行时盘）
+```
+
+### 6.1 目录与文件
+
+| 路径 | 作用 | 是否进 git |
+|------|------|-----------|
+| `~/.config/vaultix/identity` | 主 age identity（能解密所有 secret） | 否，仓库外 |
+| `secrets/*.age` | age 加密的 secret 文件 | 是 |
+| `secrets/cache/<host>/` | renc 按主机重加密的产物 | 是，必须提交 |
+
+> 主 identity 用**绝对路径字符串**写在 `modules/vaultix.nix`（`identity = "/home/onyx/.config/vaultix/identity"`），这样不会把私钥复制进 nix store。请自行备份好这个文件，丢了它所有 secret 都解不开。
+
+### 6.2 前置条件（本仓库已全部满足）
+
+- flake + `nix-command` 实验特性（`modules/nix.nix` 已开）
+- `services.userborn.enable = true`（`modules/vaultix.nix` 中自动开启，需 NixOS 24.11+）
+- `specialArgs` 传入 `self`（`modules/lib/nixos.nix` 已处理）
+
+### 6.3 首次准备：生成 identity
+
+若 `~/.config/vaultix/identity` 不存在：
+
+```bash
+nix run nixpkgs#age-keygen -- -o ~/.config/vaultix/identity
+chmod 600 ~/.config/vaultix/identity
+```
+
+新机器部署前，先在有 identity 的机器上把 `secrets/cache/` 生成好并提交（见 6.4），否则目标机的构建会因找不到 cache 而失败。
+
+### 6.4 日常流程
+
+**添加/修改 secret：**
+
+```bash
+# 1. 编辑（新建或修改）age 文件；旧文件会在 $EDITOR 中展示明文
+nix run .#vaultix.app.x86_64-linux.edit -- secrets/foo.age
+
+# 2. 在目标主机的模块里声明，例如 modules/hosts/wsl/default.nix：
+#      vaultix.secrets.foo = { };            # 默认对应 ./secrets/foo.age
+#      或 vaultix.secrets.foo = { file = ./secrets/foo.age; owner = "user"; ... };
+
+# 3. 提交 secret 文件，然后按主机重加密
+git add secrets/foo.age
+nix run .#vaultix.app.x86_64-linux.renc
+
+# 4. 把生成的 cache 一并提交（漏了部署时会报 "secrets haven't been re-encrypted"）
+git add secrets/cache
+git commit
+```
+
+**在模块中使用：** 解密后的明文路径为 `/run/vaultix/<name>`，例如：
+
+```nix
+vaultix.secrets.wireguard-key = { };
+# ...
+networking.wireguard.interfaces.wg0.privateKeyFile = config.vaultix.secrets.wireguard-key.path;
+```
+
+**删除 secret：** 删掉模块声明 + `secrets/*.age`，跑一遍 `renc`，提交。
+
+### 6.5 接入新主机
+
+每个主机都要有自己的**接收公钥**（vaultix 用它重加密 secret）：
+
+1. 在主机上确认 SSH host key 或专用 key 的公钥：
+   ```bash
+   cat /etc/ssh/ssh_host_ed25519_key.pub   # 主机已有 sshd 时
+   ```
+2. 写入该主机的 `hosts/<名字>/default.nix`：
+   ```nix
+   vaultix.settings.hostPubkey = "ssh-ed25519 AAAAC3...";   # 或 hostKeys 列表，见 wsl
+   ```
+3. 声明所需 secret，跑 `renc` 生成 `secrets/cache/<名字>/` 并提交。
+
+> `wsl` 主机没有 sshd（不会生成 host key），所以它显式声明了 `hostKeys`（一个固定路径的 ed25519 key），需要先在 WSL 里生成一次该 key 文件；`uontabc` 的 `hostPubkey` 目前是占位符，装机后按 6.5 第 1 步替换并重跑 `renc`。
+
+---
+
+## 7. 常见问题与排错
+
+### 7.1 开机卡在滚动根目录 / 想回到"出厂状态"
 
 `/` 每次开机都会从 `@root-blank` 回滚。若系统被改坏，无需重装——确保 `/persist` 里没有残留问题配置，重启即可"复位"。也可以手动把某个子卷快照覆盖回 root：
 
@@ -287,22 +384,22 @@ sudo nixos-rebuild switch --flake /home/onyx/nixos_dev#uontabc --rollback
 sudo btrfs subvolume snapshot /mnt/@root-blank /mnt/root   # 需先卸载/换挂载
 ```
 
-### 6.2 `nixos-install` 报 fileSystems 相关错误
+### 7.2 `nixos-install` 报 fileSystems 相关错误
 
 多半是 3.5 的挂载没做完整（`root`/`nix`/`persist` 三个子卷 + `/mnt/boot`），用 `findmnt` 检查 `/mnt` 下挂载点。
 
-### 6.3 SSH 无法登录
+### 7.3 SSH 无法登录
 
 `network.nix` 设置了 `PasswordAuthentication = false`，且用户没有密码登录通道。请确认：
 
 - 公钥已写入 `~/.ssh/authorized_keys`（注意 impermanence：文件必须放在 `/persist/home/onyx/.ssh/` 对应位置，`~/.ssh` 软链由 `hideMounts` 处理，直接编辑 `~/.ssh/authorized_keys` 即可）
 - 或临时在配置中放开密码认证后 `nh os switch` 再登录
 
-### 6.4 NVIDIA / prime offload
+### 7.4 NVIDIA / prime offload
 
 `modules/hardware/nvidia.nix` 默认关闭 prime offload（`lib.mkDefault false`），如需独显渲染，把 `modules/hardware/nvidia.nix` 中的 `amdgpuBusId` / `nvidiaBusId` 注释取消并按实际 `lspci` 总线号填写，再设 `offload.enable = true`。
 
-### 6.5 换源后 substitution 失败 / 密钥报错
+### 7.5 换源后 substitution 失败 / 密钥报错
 
 镜像源使用与官方缓存相同的签名密钥，但必须显式声明。检查 `nix.settings` 中是否同时包含：
 
@@ -310,7 +407,23 @@ sudo btrfs subvolume snapshot /mnt/@root-blank /mnt/root   # 需先卸载/换挂
 trusted-public-keys = [ "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=" ];
 ```
 
-### 6.6 添加/修改 host
+### 7.6 添加/修改 host
 
-- 新主机：在 `modules/hosts/<名字>/default.nix` 里仿照 `uontabc` 写 `hosts.<名字> = { system, stateVersion, module }`，`lib/nixos.nix` 会自动生成 `nixosConfigurations.<名字>`；同目录下的 `flake.modules.nixos.<名字>.*` 会被自动附加到该主机。
+- 新主机：在 `modules/hosts/<名字>/default.nix` 里仿照 `uontabc` 写 `hosts.<名字> = { system, stateVersion, module }`，`lib/nixos.nix` 会自动生成 `nixosConfigurations.<名字>`；同目录下的 `flake.modules.nixos.<名字>.*` 会被自动附加到该主机。接入 vaultix 见 6.5。
 - 改用户：改 `modules/users.nix` 的 `my.name`，`impermanence.nix` 的用户目录、`nh.nix` 的 flake 路径、`wsl.nix` 的 `defaultUser` 都会跟随。
+
+### 7.7 构建报 "secret file path not exist" / "secrets haven't been re-encrypted"
+
+说明 flake 源码里找不到对应的 secret 文件或 cache：
+
+- `secret file path not exist: .../secrets/foo.age` → `secrets/foo.age` 没 `git add`（flake 只读取 git 树内的文件），或文件路径与 `vaultix.secrets.*` 声明不一致。
+- `secrets haven't been re-encrypted: .../fcb146...` → `secrets/cache/<host>/` 有新增但没提交。跑一遍 `nix run .#vaultix.app.x86_64-linux.renc`，再 `git add secrets/cache`。
+
+### 7.8 修改 secret 后其它主机没生效
+
+`edit` 只更新 `secrets/*.age`；每台主机的明文是 renc 时按其 host key 单独重加密的，改完必须重新 `nix run .#vaultix.app.x86_64-linux.renc` 并提交 `secrets/cache/`，否则目标机拿到的还是旧值。
+
+### 7.9 忘了 identity 的 passphrase / 换机器
+
+- 备份：`~/.config/vaultix/identity` 是唯一能解密所有 secret 的钥匙，换机器时把它（和 `hosts/wsl` 使用的 `/etc/ssh/ssh_host_ed25519_key` 及私钥）一起迁走。
+- 若 identity 丢失且没有 `extraRecipients` 备份，secret 无法恢复——只能删除 `secrets/*.age` 重新生成。
