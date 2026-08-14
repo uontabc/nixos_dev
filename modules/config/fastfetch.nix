@@ -34,7 +34,9 @@
       fastfetchCentered = pkgs.writeShellScriptBin "fastfetch-centered" ''
         ${pkgs.fastfetch}/bin/fastfetch "$@" | ${pkgs.perl}/bin/perl -e '
           my $w = $ENV{COLUMNS} // 80;
-          while (<>) {
+          my @lines = <>;
+          my $width = 1;
+          for (@lines) {
             my $col = 1;
             while (/\G(.*?)(\e\[([0-9;?]*)([A-Za-z])|\e\][^\a]*\a|\z)/g) {
               $col += length($1);
@@ -43,8 +45,12 @@
               if ($c eq "G") { $col = ($p =~ /^(\d+)/) ? $1 : 1; }
               elsif ($c eq "C") { $col += ($p =~ /^(\d+)/) ? $1 : 1; }
             }
-            my $pad = int(($w - ($col - 1)) / 2);
-            $pad = 0 if $pad < 0;
+            $width = $col if $col > $width;
+          }
+          my $pad = int(($w - ($width - 1)) / 2);
+          $pad = 0 if $pad < 0;
+          for (@lines) {
+            s/\e\[(\d+)G/sprintf("\e[%dG", $1 + $pad)/ge;
             print " " x $pad, $_;
           }'
       '';
