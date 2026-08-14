@@ -8,6 +8,7 @@
         env
         nh
         git
+        neovim
       ];
 
       hardware.enableRedistributableFirmware = true;
