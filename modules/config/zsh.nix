@@ -62,6 +62,10 @@
         # Plugins
         source "${pkgs.zsh-autosuggestions}/share/zsh-autosuggestions/zsh-autosuggestions.zsh"
         source "${pkgs.zsh-syntax-highlighting}/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
+        ZSH_HIGHLIGHT_STYLES[path]=none
+        ZSH_HIGHLIGHT_STYLES[suffix-alias]=none
+        ZSH_HIGHLIGHT_STYLES[precommand]=none
+        ZSH_HIGHLIGHT_STYLES[autodirectory]=none
 
         # Aliases
         alias ll='ls -lah'
@@ -73,6 +77,7 @@
         alias gc='git commit'
         alias gp='git push'
         alias gl='git log --oneline --graph'
+        alias fastfetch='fastfetch-centered'
       '';
     in
     {

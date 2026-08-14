@@ -3,24 +3,50 @@
     { pkgs, config, ... }:
     let
       home = "/home/${config.my.name}";
+
       esc = builtins.fromJSON ''"\u001b"'';
+      blue = "${esc}[38;2;82;119;195m";
       reset = "${esc}[0m";
 
-      blue1 = "${esc}[38;2;126;156;216m";
-      blue2 = "${esc}[38;2;82;119;195m";
-      blue3 = "${esc}[38;2;58;90;153m";
-
       logo = pkgs.writeText "nixos-ascii.txt" ''
-        ${blue1}      /\
-        ${blue1}     /  \
-        ${blue1}    / /\ \
-        ${blue2}   / /__\ \
-        ${blue2}  |  NixOS  |
-        ${blue2}  |         |
-        ${blue2}   \______/
-        ${blue3}     |  |
-        ${blue3}    /|  |\
-        ${blue3}   / |__| \${reset}
+        ${blue}          ▗▄▄▄       ▗▄▄▄▄    ▄▄▄▖
+        ${blue}          ▜   ▙       ▜   ▙  ▟   ▛
+        ${blue}           ▜   ▙       ▜   ▙▟   ▛
+        ${blue}            ▜   ▙       ▜      ▛
+        ${blue}     ▟██████     ██████▙ ▜    ▛     ▟▙
+        ${blue}    ▟██████     ████████▙ ▜   ▙    ▟  ▙
+        ${blue}           ▄   ▖           ▜   ▙  ▟   ▛
+        ${blue}          ▟   ▛             ▜  ▛ ▟   ▛
+        ${blue}         ▟   ▛               ▜▛ ▟   ▛
+        ${blue}▟████████   ▛                  ▟     █████▙
+        ${blue}▜█████     ▛                  ▟   ████████▛
+        ${blue}      ▟   ▛ ▟▙               ▟   ▛
+        ${blue}     ▟   ▛ ▟  ▙             ▟   ▛
+        ${blue}    ▟   ▛  ▜   ▙           ▝   ▀
+        ${blue}    ▜  ▛    ▜   ▙ ▜████████     █████▛
+        ${blue}     ▜▛     ▟    ▙ ▜████████     ███▛
+        ${blue}           ▟      ▙         ▜   ▙
+        ${blue}          ▟   ▛▜   ▙         ▜   ▙
+        ${blue}         ▟   ▛  ▜   ▙         ▜   ▙
+        ${blue}         ▝▀▀▀    ▀▀▀▀▘         ▀▀▀▘${reset}
+      '';
+
+      fastfetchCentered = pkgs.writeShellScriptBin "fastfetch-centered" ''
+        ${pkgs.fastfetch}/bin/fastfetch "$@" | ${pkgs.perl}/bin/perl -e '
+          my $w = $ENV{COLUMNS} // 80;
+          while (<>) {
+            my $col = 1;
+            while (/\G(.*?)(\e\[([0-9;?]*)([A-Za-z])|\e\][^\a]*\a|\z)/g) {
+              $col += length($1);
+              my ($p, $c) = ($3, $4);
+              last unless defined $c;
+              if ($c eq "G") { $col = ($p =~ /^(\d+)/) ? $1 : 1; }
+              elsif ($c eq "C") { $col += ($p =~ /^(\d+)/) ? $1 : 1; }
+            }
+            my $pad = int(($w - ($col - 1)) / 2);
+            $pad = 0 if $pad < 0;
+            print " " x $pad, $_;
+          }'
       '';
 
       fastfetchConfig = pkgs.writeText "fastfetch.jsonc" (
@@ -31,24 +57,22 @@
             source = "${logo}";
             type = "file";
             padding = {
-              top = 2;
+              top = 0;
               left = 2;
             };
           };
 
           display = {
-            separator = "  →  ";
+            separator = "  ";
             key = {
               width = 16;
             };
           };
 
           modules = [
-            {
-              type = "title";
-              keyWidth = 16;
-            }
-            "separator"
+            "break"
+            "break"
+            "break"
             "os"
             "kernel"
             "uptime"
@@ -66,14 +90,16 @@
               type = "battery";
               key = "Battery";
             }
-            "colors"
             "break"
           ];
         }
       );
     in
     {
-      my.packages = [ pkgs.fastfetch ];
+      my.packages = [
+        pkgs.fastfetch
+        fastfetchCentered
+      ];
 
       systemd.tmpfiles.rules = [
         "d ${home}/.config/fastfetch 0755 ${config.my.name} users -"
