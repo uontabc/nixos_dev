@@ -50,6 +50,7 @@
         style = "bold bright-cyan"
 
         [character]
+        format = "$symbol"
         success_symbol = "[❯](bold green)"
         error_symbol = "[❯](bold red)"
         vicmd_symbol = "[❮](bold yellow)"
