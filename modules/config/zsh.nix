@@ -6,32 +6,32 @@
 
       starshipConfig = pkgs.writeText "starship.toml" ''
         format = """
-        $directory$git_branch$git_status$python$rust$golang
+        $git_branch$git_status$python$rust$golang
         $character"""
 
-        [directory]
-        truncation_length = 3
-        truncation_symbol = "…/"
-
         [git_branch]
-        symbol = " "
+        symbol = ""
         style = "bold purple"
+        format = "[$symbol$branch]($style)"
 
         [git_status]
-        style = "bold yellow"
+        style = "bold bright-yellow"
 
         [python]
-        symbol = " "
+        symbol = ""
+        style = "bold bright-yellow"
 
         [rust]
-        symbol = " "
+        symbol = ""
+        style = "bold red"
 
         [golang]
-        symbol = " "
+        symbol = ""
+        style = "bold bright-cyan"
 
         [character]
-        success_symbol = "[❯](bold green)"
-        error_symbol = "[❯](bold red)"
+        success_symbol = "[](bold green)"
+        error_symbol = "[](bold red)"
         vicmd_symbol = "[❮](bold yellow)"
       '';
 
