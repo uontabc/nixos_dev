@@ -5,9 +5,13 @@
       home = "/home/${config.my.name}";
 
       starshipConfig = pkgs.writeText "starship.toml" ''
-        format = """
-        $git_branch$git_status$python$rust$golang
-        $character"""
+        format = "$directory$git_branch$git_status$cmd_duration$python$rust$golang$character"
+
+        [directory]
+        truncation_length = 3
+        truncation_symbol = "…/"
+        style = "bold bright-blue"
+        format = "[$path]($style) "
 
         [git_branch]
         symbol = " "
@@ -16,17 +20,33 @@
 
         [git_status]
         style = "bold bright-yellow"
+        format = "[$all_status$ahead_behind]($style) "
+        ahead = "↑ "
+        behind = "↓ "
+        diverged = "⇕ "
+        staged = "● "
+        modified = "✎ "
+        deleted = "✗ "
+        untracked = "… "
+        conflicted = "= "
+
+        [cmd_duration]
+        min_time = 2_000
+        format = "in [$duration](bold bright-cyan) "
 
         [python]
         symbol = " "
+        version_format = "v''${raw}"
         style = "bold bright-yellow"
 
         [rust]
         symbol = " "
+        version_format = "v''${raw}"
         style = "bold red"
 
         [golang]
         symbol = " "
+        version_format = "v''${raw}"
         style = "bold bright-cyan"
 
         [character]
