@@ -22,5 +22,8 @@
       url = "github:nix-community/NixOS-WSL";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    # NOTE: vaultix keeps its own pinned nixpkgs (nixos-unstable) on purpose,
+    # matching its CI/tested revision.
+    vaultix.url = "github:milieuim/vaultix";
   };
 }

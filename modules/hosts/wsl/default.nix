@@ -12,6 +12,20 @@
         #
         # No boot/network/hardware/desktop/impermanence: WSL provides its own
         # kernel, network and display (WSLg). This is a terminal-only distro.
+
+        vaultix.settings = {
+          # sshd is disabled on this host, so host keys are never generated —
+          # vaultix decrypts secrets with this dedicated key instead.
+          hostKeys = [
+            {
+              path = "/etc/ssh/ssh_host_ed25519_key";
+              type = "ed25519";
+            }
+          ];
+          hostPubkey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKZ2ZTdB7qpgtPQW2hg2yog8nKaK8bRL7qYzK/EoKkrN root@wsl";
+        };
+
+        vaultix.secrets.example = { };
       };
   };
 }

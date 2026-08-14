@@ -16,8 +16,11 @@ result-*
 .DS_Store
 Thumbs.db
 
-# Secrets (don't accidentally commit)
-secrets/
+# Vaultix secrets are age-encrypted (*.age) or re-encrypted per-host
+# (secrets/cache/) — both belong in git. Only plaintext must never be
+# committed, so guard the file names instead:
+# secrets/*.txt
+# secrets/*.plain
 *.key
 *.pem
 secrets.nix

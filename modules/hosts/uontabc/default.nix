@@ -53,6 +53,13 @@
 
         # btrfs-progs must be reachable from the systemd initrd environment.
         boot.initrd.systemd.storePaths = [ "${pkgs.btrfs-progs}/bin" ];
+
+        vaultix.settings = {
+          # TODO: replace with the real host key once uontabc is installed:
+          #   ssh-keyscan uontabc | head -1   # or cat /etc/ssh/ssh_host_ed25519_key.pub
+          # then run `nix run .#vaultix.app.x86_64-linux.renc` and commit the cache.
+          hostPubkey = "ssh-ed25519 AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= placeholder-for-uontabc";
+        };
       };
   };
 }
