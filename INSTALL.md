@@ -10,7 +10,8 @@
 - nixpkgs 分支：`nixos-26.05`
 - 系统 Nix：**Lix**（来自 nixpkgs）
 - 包管理辅助：**nh**（`nh os switch` / `nh clean`）
-- 密钥管理：**vaultix**（age 加密的声明式 secrets，见第 7 节）
+- 密钥管理：**vaultix**（age 加密的声明式 secrets，见第 6 节）
+- 开发环境：**microvm**（QEMU/KVM 微虚拟机，内置 `docker-dev` 沙箱）+ **dev-templates**（the-nix-way 多语言开发模板，见第 7 节）
 
 ---
 
@@ -18,11 +19,12 @@
 
 ```
 nixos_dev/
-├── flake.nix              # Flake 入口：输入源定义（nixpkgs、flake-parts、disko、impermanence、nixvim、noctalia、nixos-wsl、vaultix）
+├── flake.nix              # Flake 入口：输入源定义（nixpkgs、flake-parts、disko、impermanence、nixvim、noctalia、nixos-wsl、microvm、dev-templates、vaultix）
 ├── flake.lock             # 依赖锁定文件
-├── secrets/               # vaultix 密钥仓库（见第 7 节）
+├── secrets/               # vaultix 密钥仓库（见第 6 节）
 │   ├── *.age              # age 加密的 secret 文件（进入 git）
 │   └── cache/<host>/      # renc 生成的主机级重加密产物（进入 git）
+├── templates/             # 自带的 flake 模板（microvm-docker；其余语言模板来自 the-nix-way/dev-templates 重导出）
 └── modules/
     ├── base.nix           # 所有主机共用的基础模块（用户、Nix、i18n、nh、vaultix、编辑器、shell 等）
     ├── users.nix          # 用户定义（默认用户名 onyx），含 my.name / my.packages 自定义选项
@@ -35,6 +37,8 @@ nixos_dev/
     ├── disko.nix           # 引入 disko 的 NixOS 模块（分区/文件系统定义）
     ├── wsl.nix             # NixOS-WSL 模块（host: wsl 专用）
     ├── vaultix.nix         # vaultix flake 模块：identity、secrets 目录、NixOS 模块接入
+    ├── microvm.nix         # microvm.nix 接入：docker-dev 微虚拟机定义（仅 uontabc 启用，见第 7 节）
+    ├── templates.nix       # flake 模板：重导出 dev-templates + 自带 microvm-docker
     ├── flake-parts.nix     # flake-parts 接入、pkgs 构造（允许 unfree）
     ├── systems.nix         # 支持的平台（x86_64-linux）
     ├── lib/nixos.nix       # host 工厂：由 modules/hosts/* 自动生成 nixosConfigurations（含 vaultix 所需的 specialArgs.self）
@@ -372,11 +376,95 @@ networking.wireguard.interfaces.wg0.privateKeyFile = config.vaultix.secrets.wire
 
 > `wsl` 主机没有 sshd（不会生成 host key），所以它显式声明了 `hostKeys`（一个固定路径的 ed25519 key），需要先在 WSL 里生成一次该 key 文件；`uontabc` 的 `hostPubkey` 目前是占位符，装机后按 6.5 第 1 步替换并重跑 `renc`。
 
+### 6.6 示例：opencode 的 API key
+
+opencode 的凭据存放在 `~/.local/share/opencode/auth.json`（格式 `{"deepseek": {"api_key": "..."}}`）。本仓库把**这个文件的完整内容**作为一个 vaultix secret 管理：
+
+1. secret 声明在 `modules/config/opencode.nix`（`vaultix.secrets.opencode-auth`，属主为当前用户、权限 0600）。
+2. 开机时 `opencode-auth.service` 把 `/run/vaultix/opencode-auth` 部署为 `~/.local/share/opencode/auth.json`。
+3. 换 key 流程：
+   ```bash
+   nix run .#vaultix.app.x86_64-linux.edit -- secrets/opencode-auth.age   # 把内容改为 {"deepseek": {"api_key": "..."}}
+   nix run .#vaultix.app.x86_64-linux.renc
+   git add secrets && git commit
+   nh os switch
+   ```
+
+> 注意：`/connect` 命令手动写入的 key 会被声明式部署覆盖；换 key 请走上述流程而不是 `/connect`。
+
 ---
 
-## 7. 常见问题与排错
+## 7. 开发环境（MicroVM + Docker + 模板）
 
-### 7.1 开机卡在滚动根目录 / 想回到"出厂状态"
+### 7.1 docker-dev 微虚拟机
+
+`uontabc` 启用了 [microvm.nix](https://github.com/microvm-nix/microvm.nix) 框架，声明式定义了一台 **docker-dev** 微虚拟机（QEMU + KVM，2GB 内存 / 2 vCPU）。相比 `nixos-container`，microvm 是真正的虚拟机（独立内核、独占内存/IO），隔离更强、性能接近裸机。
+
+配置要点（`modules/microvm.nix`）：
+
+| 项目 | 值 | 说明 |
+|------|-----|------|
+| hypervisor | `qemu` | 支持 9p 共享 + SLiRP 用户网络 |
+| shares | `ro-store` | 只读共享主机 `/nix/store`，guest 启动几乎不额外占磁盘 |
+| shares | `dev` | `~/dev` 挂载到 guest 的 `/workspace`（可写） |
+| volumes | `docker-data.img` | 8GB 数据盘（自动创建，ext4），docker 镜像重启不丢 |
+| interfaces | user 网络 | SLiRP，guest 可上网，主机无需任何网卡配置 |
+| forwardPorts | `2222 → 22` | SSH 进入 guest |
+| docker | `virtualisation.docker.enable` | guest 内 docker daemon |
+| autostart | `false` | 不随开机自启，手动启动 |
+
+**使用：**
+
+```bash
+# 启动 / 停止 / 查看状态
+systemctl start microvm@docker-dev.service
+systemctl stop  microvm@docker-dev.service
+systemctl status microvm@docker-dev.service
+
+# 进入 guest：root 自动登录（串口控制台）或 SSH
+ssh root@localhost -p 2222        # 密码 toor
+
+# guest 内使用 docker（开发目录在 /workspace）
+docker run --rm -it -v /workspace:/src alpine sh
+```
+
+**修改 guest 配置：** 只改 `modules/microvm.nix`，`nh os switch` 后声明式 VM 会自动重建并重启（`restartIfChanged`）。
+
+**注意事项：**
+
+- guest 根文件系统只读（依赖 `ro-store` 共享），在 guest 内不能 `nixos-rebuild`，安装包请直接在主机配置里加。
+- VM 状态目录：`/var/lib/microvms/docker-dev/`（含 `docker-data.img`、当前 runner 等）。
+- 需要 KVM：确认主机 BIOS 已开虚拟化且 `/dev/kvm` 存在（见 8.10）。
+
+### 7.2 dev-templates（多语言开发模板）
+
+本仓库重导出了 [the-nix-way/dev-templates](https://github.com/the-nix-way/dev-templates) 的全部模板（rust、go、python、node、zig、c-cpp、shell、nix、empty 等 40+ 个），并自带一个 `microvm-docker` 模板：
+
+```bash
+# 在已有项目目录里初始化开发环境
+nix flake init -t .#rust          # 或 .#go / .#python / .#node / .#zig ...
+
+# 或直接新建项目目录
+nix flake new -t .#go ./my-project
+
+# 进入开发环境
+nix develop                       # 已装 nix-direnv 的话：direnv allow
+```
+
+查看全部可用模板：`nix flake show`（`templates.*` 部分）。
+
+**自带模板 `microvm-docker`：** 独立的 docker 开发 MicroVM，可在任意机器上 `nix run`（无需改主机配置），适合临时开一个隔离沙箱：
+
+```bash
+nix flake init -t .#microvm-docker
+nix run                          # 前台运行，SSH 端口映射 2222 → 22
+```
+
+---
+
+## 8. 常见问题与排错
+
+### 8.1 开机卡在滚动根目录 / 想回到"出厂状态"
 
 `/` 每次开机都会从 `@root-blank` 回滚。若系统被改坏，无需重装——确保 `/persist` 里没有残留问题配置，重启即可"复位"。也可以手动把某个子卷快照覆盖回 root：
 
@@ -384,22 +472,22 @@ networking.wireguard.interfaces.wg0.privateKeyFile = config.vaultix.secrets.wire
 sudo btrfs subvolume snapshot /mnt/@root-blank /mnt/root   # 需先卸载/换挂载
 ```
 
-### 7.2 `nixos-install` 报 fileSystems 相关错误
+### 8.2 `nixos-install` 报 fileSystems 相关错误
 
 多半是 3.5 的挂载没做完整（`root`/`nix`/`persist` 三个子卷 + `/mnt/boot`），用 `findmnt` 检查 `/mnt` 下挂载点。
 
-### 7.3 SSH 无法登录
+### 8.3 SSH 无法登录
 
 `network.nix` 设置了 `PasswordAuthentication = false`，且用户没有密码登录通道。请确认：
 
 - 公钥已写入 `~/.ssh/authorized_keys`（注意 impermanence：文件必须放在 `/persist/home/onyx/.ssh/` 对应位置，`~/.ssh` 软链由 `hideMounts` 处理，直接编辑 `~/.ssh/authorized_keys` 即可）
 - 或临时在配置中放开密码认证后 `nh os switch` 再登录
 
-### 7.4 NVIDIA / prime offload
+### 8.4 NVIDIA / prime offload
 
 `modules/hardware/nvidia.nix` 默认关闭 prime offload（`lib.mkDefault false`），如需独显渲染，把 `modules/hardware/nvidia.nix` 中的 `amdgpuBusId` / `nvidiaBusId` 注释取消并按实际 `lspci` 总线号填写，再设 `offload.enable = true`。
 
-### 7.5 换源后 substitution 失败 / 密钥报错
+### 8.5 换源后 substitution 失败 / 密钥报错
 
 镜像源使用与官方缓存相同的签名密钥，但必须显式声明。检查 `nix.settings` 中是否同时包含：
 
@@ -407,23 +495,36 @@ sudo btrfs subvolume snapshot /mnt/@root-blank /mnt/root   # 需先卸载/换挂
 trusted-public-keys = [ "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=" ];
 ```
 
-### 7.6 添加/修改 host
+### 8.6 添加/修改 host
 
 - 新主机：在 `modules/hosts/<名字>/default.nix` 里仿照 `uontabc` 写 `hosts.<名字> = { system, stateVersion, module }`，`lib/nixos.nix` 会自动生成 `nixosConfigurations.<名字>`；同目录下的 `flake.modules.nixos.<名字>.*` 会被自动附加到该主机。接入 vaultix 见 6.5。
 - 改用户：改 `modules/users.nix` 的 `my.name`，`impermanence.nix` 的用户目录、`nh.nix` 的 flake 路径、`wsl.nix` 的 `defaultUser` 都会跟随。
 
-### 7.7 构建报 "secret file path not exist" / "secrets haven't been re-encrypted"
+### 8.7 构建报 "secret file path not exist" / "secrets haven't been re-encrypted"
 
 说明 flake 源码里找不到对应的 secret 文件或 cache：
 
 - `secret file path not exist: .../secrets/foo.age` → `secrets/foo.age` 没 `git add`（flake 只读取 git 树内的文件），或文件路径与 `vaultix.secrets.*` 声明不一致。
 - `secrets haven't been re-encrypted: .../fcb146...` → `secrets/cache/<host>/` 有新增但没提交。跑一遍 `nix run .#vaultix.app.x86_64-linux.renc`，再 `git add secrets/cache`。
 
-### 7.8 修改 secret 后其它主机没生效
+### 8.8 修改 secret 后其它主机没生效
 
 `edit` 只更新 `secrets/*.age`；每台主机的明文是 renc 时按其 host key 单独重加密的，改完必须重新 `nix run .#vaultix.app.x86_64-linux.renc` 并提交 `secrets/cache/`，否则目标机拿到的还是旧值。
 
-### 7.9 忘了 identity 的 passphrase / 换机器
+### 8.9 忘了 identity 的 passphrase / 换机器
 
 - 备份：`~/.config/vaultix/identity` 是唯一能解密所有 secret 的钥匙，换机器时把它（和 `hosts/wsl` 使用的 `/etc/ssh/ssh_host_ed25519_key` 及私钥）一起迁走。
 - 若 identity 丢失且没有 `extraRecipients` 备份，secret 无法恢复——只能删除 `secrets/*.age` 重新生成。
+
+### 8.10 microvm 启动失败：找不到 /dev/kvm
+
+`docker-dev` 是 KVM 加速虚拟机，没有 `/dev/kvm` 会启动失败。排查：
+
+```bash
+ls -l /dev/kvm            # 不存在则看下一步
+grep -E "vmx|svm" /proc/cpuinfo   # CPU 是否支持虚拟化
+```
+
+- 在 BIOS/UEFI 里开启虚拟化（Intel VT-x / AMD SVM）。
+- 确认宿主机的 `kvm-amd`（AMD）或 `kvm-intel`（Intel）内核模块已加载：`lsmod | grep kvm`。
+- 注意：WSL2 里跑 microvm 需要 Windows 侧开启嵌套虚拟化，`uontabc`（裸机）没有这个问题。

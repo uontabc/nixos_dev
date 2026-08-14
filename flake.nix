@@ -22,6 +22,15 @@
       url = "github:nix-community/NixOS-WSL";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    microvm = {
+      url = "github:microvm-nix/microvm.nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    # Re-exported as flake templates: `nix flake init -t .#<lang>`.
+    dev-templates = {
+      url = "github:the-nix-way/dev-templates";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     # NOTE: vaultix keeps its own pinned nixpkgs (nixos-unstable) on purpose,
     # matching its CI/tested revision.
     vaultix.url = "github:milieuim/vaultix";

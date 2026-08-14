@@ -9,6 +9,7 @@
           network
           hardware
           desktop
+          microvm
           impermanence
           disko
         ];
