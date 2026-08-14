@@ -29,11 +29,12 @@ An earlier version used [disko](https://github.com/nix-community/disko) for decl
     ├── flake-parts.nix             #   perSystem config (unfree, overlays)
     ├── lib/nixos.nix               #   host factory: options.hosts → nixosConfigurations
     ├── users.nix                   #   my.name / my.packages options + user creation
-    ├── base.nix                    #   aggregator: users, nix, i18n, env, nh, git
+    ├── base.nix                    #   aggregator: users, nix, i18n, env, nh, git, xwayland
     ├── boot.nix                    #   GRUB + os-prober + btrfs/ntfs
     ├── network.nix                 #   NetworkManager + openssh
     ├── env.nix                     #   XDG session variables
     ├── nh.nix                      #   nh CLI + weekly GC
+    ├── xwayland.nix                #   xwayland-satellite in PATH (niri auto-spawns it)
     ├── hardware.nix                 #   aggregator: cpu-amd, nvidia, graphics, bluetooth, input
     ├── cpu-amd.nix  nvidia.nix  graphics.nix  bluetooth.nix  input.nix
     ├── desktop.nix                 #   aggregator: audio, display, portal, noctalia, niri, kitty, qt, fonts

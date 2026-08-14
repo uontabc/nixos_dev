@@ -29,11 +29,12 @@
     ├── flake-parts.nix             #   perSystem 配置（unfree、overlays）
     ├── lib/nixos.nix               #   主机工厂：options.hosts → nixosConfigurations
     ├── users.nix                   #   my.name / my.packages 选项 + 用户创建
-    ├── base.nix                    #   聚合：users, nix, i18n, env, nh, git
+    ├── base.nix                    #   聚合：users, nix, i18n, env, nh, git, xwayland
     ├── boot.nix                    #   GRUB + os-prober + btrfs/ntfs
     ├── network.nix                 #   NetworkManager + openssh
     ├── env.nix                     #   XDG 会话变量
     ├── nh.nix                      #   nh CLI + 每周 GC
+    ├── xwayland.nix                #   xwayland-satellite 放入 PATH（niri 自动按需启动）
     ├── hardware.nix                #   聚合：cpu-amd, nvidia, graphics, bluetooth, input
     ├── cpu-amd.nix  nvidia.nix  graphics.nix  bluetooth.nix  input.nix
     ├── desktop.nix                 #   聚合：audio, display, portal, noctalia, niri, kitty, qt, fonts

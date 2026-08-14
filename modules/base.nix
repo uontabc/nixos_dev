@@ -8,6 +8,7 @@
         env
         nh
         git
+        xwayland
       ];
 
       hardware.enableRedistributableFirmware = true;
