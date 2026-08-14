@@ -3,16 +3,24 @@
     { pkgs, config, ... }:
     let
       home = "/home/${config.my.name}";
+      esc = builtins.fromJSON ''"\u001b"'';
+      reset = "${esc}[0m";
+
+      blue1 = "${esc}[38;2;126;156;216m";
+      blue2 = "${esc}[38;2;82;119;195m";
+      blue3 = "${esc}[38;2;58;90;153m";
 
       logo = pkgs.writeText "nixos-ascii.txt" ''
-             _______
-            /       \
-           |  NixOS  |
-           |         |
-            \_______/
-              |   |
-             /|   |\
-            / |___| \
+        ${blue1}      /\
+        ${blue1}     /  \
+        ${blue1}    / /\ \
+        ${blue2}   / /__\ \
+        ${blue2}  |  NixOS  |
+        ${blue2}  |         |
+        ${blue2}   \______/
+        ${blue3}     |  |
+        ${blue3}    /|  |\
+        ${blue3}   / |__| \${reset}
       '';
 
       fastfetchConfig = pkgs.writeText "fastfetch.jsonc" (
@@ -54,8 +62,11 @@
             "gpu"
             "memory"
             "disk"
-            "battery"
-            "locale"
+            {
+              type = "battery";
+              key = "Battery";
+            }
+            "colors"
             "break"
           ];
         }
