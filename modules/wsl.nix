@@ -1,6 +1,6 @@
-{ inputs, ... }: {
+{ inputs, self, ... }: {
   flake.modules.nixos.wsl =
-    { config, lib, ... }: {
+    { config, ... }: {
       imports = [ inputs.nixos-wsl.nixosModules.wsl ];
 
       wsl = {
@@ -11,14 +11,11 @@
         useWindowsDriver = true;
         startMenuLaunchers = true;
 
-        # Bake this entire flake (this file is modules/wsl.nix, so ../. is the
-        # repository root) into the tarball's /etc/nixos. After `wsl --import`,
-        # the full configuration is already present — just run
-        # `nixos-rebuild switch --flake /etc/nixos#wsl` (or clone elsewhere and
-        # use nh) to activate. Without this, the tarball only contains a
-        # minimal NixOS-WSL config and you would have to clone the repo inside
-        # the distro manually.
-        tarball.configPath = lib.cleanSource ../.;
+        # Bake the flake source (self.outPath — already a store path, no
+        # cleanSource copy of the repo root which would recurse) into the
+        # tarball's /etc/nixos. After `wsl --import`, the full configuration
+        # is present — run `nixos-rebuild switch --flake /etc/nixos#wsl`.
+        tarball.configPath = self.outPath;
       };
 
       system.stateVersion = "26.05";
