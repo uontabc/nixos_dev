@@ -656,6 +656,25 @@ sudo nixos-rebuild switch --flake ~/nixos#wsl
 
 重建立即生效；若 systemd 单元卡住，用 `wsl --shutdown` 重启发行版。
 
+### 故障排查：root 权限 / 忘记密码
+
+NixOS-WSL 构建根文件系统时使用 `--no-root-passwd`，所以 **root 无密码**，`sudo` 要求输入**当前用户**的密码（onyx / `changeme`，改过就用自己的）。若忘记用户密码或需要 root，无需 sudo：
+
+```powershell
+# Windows PowerShell 中——直接以 root 进入发行版，无需密码：
+wsl -d NixOS -u root
+```
+
+然后在 root shell 中：
+
+```bash
+passwd root          # 设置 root 密码（可选）
+passwd onyx          # 重置 onyx 密码
+nixos-rebuild switch --flake /home/onyx/nixos#wsl
+```
+
+注意 `nixos-rebuild switch` 必须 root 运行：nix store 由 nix daemon 写入（普通用户可构建），但最后一步 `nix-env --set` 写 `/nix/var/nix/profiles/system` 需要 root（用 `sudo nixos-rebuild switch` 或上面的 root shell）。
+
 ## 参考
 
 - [niri 文档](https://niri-wm.github.io/niri/)

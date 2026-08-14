@@ -655,6 +655,25 @@ sudo nixos-rebuild switch --flake ~/nixos#wsl
 
 Rebuilds take effect immediately; restart the distro with `wsl --shutdown` if systemd units are stuck.
 
+### Troubleshooting: root access / forgotten password
+
+NixOS-WSL builds the root filesystem with `--no-root-passwd`, so **root has no password** and `sudo` asks for the *user's* password (onyx / `changeme` until you change it). If you forgot the user password, or need root without sudo:
+
+```powershell
+# From Windows PowerShell — enter the distro as root, no password needed:
+wsl -d NixOS -u root
+```
+
+Then, in the root shell:
+
+```bash
+passwd root          # set a root password (optional)
+passwd onyx          # reset the onyx password
+nixos-rebuild switch --flake /home/onyx/nixos#wsl
+```
+
+Note that `nixos-rebuild switch` must run as root: the store is written by the nix daemon (user builds work), but the final `nix-env --set` to `/nix/var/nix/profiles/system` requires root (`sudo nixos-rebuild switch` or the root shell above).
+
 ## References
 
 - [niri documentation](https://niri-wm.github.io/niri/)
