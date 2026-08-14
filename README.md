@@ -174,7 +174,29 @@ This phase creates partitions **only in the 512 GB of unallocated space**. Every
 nix-shell -p git vim parted btrfs-progs dosfstools --command bash
 ```
 
-#### 2.2 Identify the target disk and free space
+#### 2.2 Clone the repository (disko needs the flake)
+
+```bash
+cd /tmp
+git clone https://github.com/uontabc/nixos_dev.git nixos
+cd nixos
+```
+
+If `nix flake` complains about experimental features, enable flakes for this shell:
+
+```bash
+mkdir -p ~/.config/nix
+echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
+```
+
+Verify the flake:
+
+```bash
+nix flake show
+# Should list: nixosConfigurations.uontabc
+```
+
+#### 2.3 Identify the target disk and free space
 
 ```bash
 lsblk
@@ -196,7 +218,7 @@ Number  Start    End      Size     Type      File system  Flags
 
 Record the Start (in MiB) and End of the Free Space block — call them `$FREE_START_MIB` and `$DISK_END_MIB`. For the example above: `971776` MiB (= 950 × 1024) and `1497088` MiB (= 1462 × 1024). The exact numbers depend on your disk.
 
-#### 2.3 Create the NixOS ESP and btrfs partitions
+#### 2.4 Create the NixOS ESP and btrfs partitions
 
 Compute the ESP end first (ESP = 1024 MiB):
 
@@ -238,9 +260,10 @@ ls -l /dev/disk/by-partlabel/
 With the partitions in place, disko takes over. It is **idempotent** — `blkid` detects any existing filesystem and skips `mkfs`; `btrfs subvolume show` detects any existing subvolume and skips create. So even on a re-run nothing gets destroyed. disko also **injects `fileSystems.*` into the NixOS config automatically** — no manual `fileSystems` declarations in the repo.
 
 ```bash
-sudo nix run github:nix-community/disko -- \
-  --mode format,mount --flake .#uontabc
+sudo nix run .#nixosConfigurations.uontabc.config.system.build.formatMount
 ```
+
+> Using the flake's own `formatMount` script (rather than `nix run github:nix-community/disko`) guarantees the executed disko revision matches the one pinned in `flake.nix` — no version drift, no hard error on re-runs.
 
 This:
 1. `mkfs.fat` the `nixos-esp` partition (skipped if already fat32).
@@ -262,29 +285,7 @@ df -h /mnt /mnt/boot /mnt/nix /mnt/persist
 
 ### Phase 3 — Installation
 
-#### 3.1 Clone the repository
-
-```bash
-cd /tmp
-git clone https://github.com/uontabc/nixos_dev.git nixos
-cd nixos
-```
-
-If `nix flake` complains about experimental features, enable flakes for this shell:
-
-```bash
-mkdir -p ~/.config/nix
-echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
-```
-
-Verify the flake:
-
-```bash
-nix flake show
-# Should list: nixosConfigurations.uontabc
-```
-
-#### 3.2 (Optional sanity check) Dry-evaluate the system
+#### 3.1 (Optional sanity check) Dry-evaluate the system
 
 If you've adjusted any modules, evaluate the configuration without activating:
 
@@ -292,7 +293,7 @@ If you've adjusted any modules, evaluate the configuration without activating:
 nix build .#nixosConfigurations.uontabc.config.system.build.toplevel --dry-run
 ```
 
-#### 3.3 Install NixOS
+#### 3.2 Install NixOS
 
 ```bash
 sudo nixos-install --flake .#uontabc --root /mnt
@@ -610,7 +611,10 @@ This makes Windows treat the hardware clock as UTC, matching NixOS. Do **not** u
 - [impermanence](https://github.com/nix-community/impermanence)
 - [flake-parts](https://flake.parts) — module system for organizing flake outputs
 - [btrfs subvolumes — Arch Wiki](https://wiki.archlinux.org/title/Btrfs#Subvolumes) (the rollback pattern is borrowed from here)
-- [ryan4yin/nix-config](https://github.com/ryan4yin/nix-config) — reference for niri + Noctalia + impermanence composition
+- [ocfox/island](https://github.com/ocfox/island) — architecture reference: flake-parts + import-tree, `flake.modules.nixos.<name>` named modules, host factory in `lib/nixos.nix`
+- [ryan4yin/nix-config](https://github.com/ryan4yin/nix-config) — niri + Noctalia + impermanence composition, nh usage
+- [Misterio77/Foundry](https://github.com/Misterio77/Foundry) — impermanence + disko + btrfs blank-snapshot rollback pattern, module organization
+- [viperML/dotfiles](https://github.com/viperML/dotfiles) — module-by-topic organization, nh usage
 
 ## License
 

@@ -1,7 +1,8 @@
 {
   flake.modules.nixos.niri =
-    { pkgs, ... }:
+    { pkgs, config, ... }:
     let
+      home = "/home/${config.my.name}";
       niriConfig = pkgs.writeText "niri-config.kdl" ''
         input {
             keyboard {
@@ -149,8 +150,8 @@
       environment.systemPackages = [ pkgs.niri ];
 
       systemd.tmpfiles.rules = [
-        "d /home/onyx/.config/niri 0755 onyx users -"
-        "L+ /home/onyx/.config/niri/config.kdl - - - - ${niriConfig}"
+        "d ${home}/.config/niri 0755 ${config.my.name} users -"
+        "L+ ${home}/.config/niri/config.kdl - - - - ${niriConfig}"
       ];
     };
 }

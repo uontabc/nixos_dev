@@ -1,6 +1,6 @@
 { inputs, ... }: {
   flake.modules.nixos.impermanence =
-    { ... }: {
+    { config, ... }: {
       imports = [ inputs.impermanence.nixosModules.impermanence ];
 
       environment.persistence."/persist" = {
@@ -24,7 +24,7 @@
           "/etc/ssh/ssh_host_rsa_key.pub"
         ];
 
-        users.onyx = {
+        users.${config.my.name} = {
           directories = [
             "Documents"
             "Downloads"

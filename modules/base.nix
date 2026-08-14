@@ -2,14 +2,12 @@
   flake.modules.nixos.base =
     { pkgs, ... }: {
       imports = with config.flake.modules.nixos; [
-        disko
         users
         nix
         i18n
         env
         nh
         git
-        xwayland
       ];
 
       hardware.enableRedistributableFirmware = true;

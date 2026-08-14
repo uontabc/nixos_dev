@@ -10,6 +10,7 @@
         kitty
         qt
         fonts
+        xwayland
       ];
 
       my.packages = with pkgs; [

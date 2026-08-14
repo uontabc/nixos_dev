@@ -176,7 +176,29 @@ timedatectl status
 nix-shell -p git vim parted btrfs-progs dosfstools --command bash
 ```
 
-#### 2.2 确认目标磁盘与空闲空间
+#### 2.2 克隆仓库（disko 需要 flake）
+
+```bash
+cd /tmp
+git clone https://github.com/uontabc/nixos_dev.git nixos
+cd nixos
+```
+
+若 `nix flake` 报 experimental features，为本 shell 启用 flakes：
+
+```bash
+mkdir -p ~/.config/nix
+echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
+```
+
+验证 flake：
+
+```bash
+nix flake show
+# 应列出：nixosConfigurations.uontabc
+```
+
+#### 2.3 确认目标磁盘与空闲空间
 
 ```bash
 lsblk
@@ -198,7 +220,7 @@ Number  Start    End      Size     Type      File system  Flags
 
 记下 Free Space 的 Start（MiB）与磁盘总 End，分别叫 `$FREE_START_MIB` 与 `$DISK_END_MIB`。上例为 `971776` MiB（= 950 × 1024）与 `1497088` MiB（= 1462 × 1024）。实际数字按你的磁盘算。
 
-#### 2.3 创建 NixOS ESP 与 btrfs 分区
+#### 2.4 创建 NixOS ESP 与 btrfs 分区
 
 先算 ESP 末尾（ESP = 1024 MiB）：
 
@@ -235,14 +257,15 @@ ls -l /dev/disk/by-partlabel/
 # 预期：nixos-esp -> ../../nvme0n1p4，nixos-btrfs -> ../../nvme0n1p5
 ```
 
-#### 2.4 跑 disko（format + mount）
+#### 2.5 跑 disko（format + mount）
 
 分区就位后交给 disko。disko **幂等**——`blkid` 检测已有文件系统就跳过 `mkfs`；`btrfs subvolume show` 检测已存在子卷就跳过创建。所以重跑也不会破坏任何东西。disko 还会**自动把 `fileSystems.*` 注入 NixOS 配置**——仓库里无需手写 `fileSystems`。
 
 ```bash
-sudo nix run github:nix-community/disko -- \
-  --mode format,mount --flake .#uontabc
+sudo nix run .#nixosConfigurations.uontabc.config.system.build.formatMount
 ```
+
+> 使用 flake 自带的 `formatMount` 脚本（而不是 `nix run github:nix-community/disko`）可保证执行的 disko 版本与 `flake.nix` 中锁定的完全一致——无版本漂移，重跑不会报 hard error。
 
 这将：
 1. `mkfs.fat` 格式化 `nixos-esp`（已是 fat32 则跳过）。
@@ -264,29 +287,7 @@ df -h /mnt /mnt/boot /mnt/nix /mnt/persist
 
 ### 阶段三——安装
 
-#### 3.1 克隆仓库
-
-```bash
-cd /tmp
-git clone https://github.com/uontabc/nixos_dev.git nixos
-cd nixos
-```
-
-若 `nix flake` 报 experimental features，为本 shell 启用 flakes：
-
-```bash
-mkdir -p ~/.config/nix
-echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
-```
-
-验证 flake：
-
-```bash
-nix flake show
-# 应列出：nixosConfigurations.uontabc
-```
-
-#### 3.2（可选演练）Dry-evaluate 系统
+#### 3.1（可选演练）Dry-evaluate 系统
 
 若你调整过任何模块，先只求值不激活：
 
@@ -294,7 +295,7 @@ nix flake show
 nix build .#nixosConfigurations.uontabc.config.system.build.toplevel --dry-run
 ```
 
-#### 3.3 安装 NixOS
+#### 3.2 安装 NixOS
 
 ```bash
 sudo nixos-install --flake .#uontabc --root /mnt
@@ -611,7 +612,10 @@ reg add "HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation" /v RealTimeI
 - [impermanence](https://github.com/nix-community/impermanence)
 - [flake-parts](https://flake.parts)——组织 flake 输出的模块系统
 - [btrfs subvolumes — Arch Wiki](https://wiki.archlinux.org/title/Btrfs#Subvolumes)（回滚模式借鉴自此）
-- [ryan4yin/nix-config](https://github.com/ryan4yin/nix-config)——参考其 niri + Noctalia + impermanence 组合
+- [ocfox/island](https://github.com/ocfox/island)——架构参考：flake-parts + import-tree、`flake.modules.nixos.<name>` 具名模块、`lib/nixos.nix` 主机工厂
+- [ryan4yin/nix-config](https://github.com/ryan4yin/nix-config)——niri + Noctalia + impermanence 组合、nh 用法
+- [Misterio77/Foundry](https://github.com/Misterio77/Foundry)——impermanence + disko + btrfs 空快照回滚模式、模块组织
+- [viperML/dotfiles](https://github.com/viperML/dotfiles)——按主题组织模块、nh 用法
 
 ## 许可证
 

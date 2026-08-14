@@ -1,29 +1,26 @@
-{ self, ... }: {
+{
   hosts.uontabc = {
     system = "x86_64-linux";
     stateVersion = "26.05";
     module =
-      { lib, ... }: {
-        imports = with self.modules.nixos; [
+      { lib, config, ... }: {
+        imports = with config.flake.modules.nixos; [
           boot
           network
           hardware
           desktop
           impermanence
+          disko
         ];
 
         boot.initrd.availableKernelModules = [ "xhci_pci" "nvme" "usb_storage" "sd_mod" ];
         swapDevices = [ ];
 
-        # disko takes over fileSystems for us — it injects fileSystems.* for the
-        # nixos-esp (vfat) + nixos-btrfs subvolumes (root/persist/nix), all
-        # referenced by the stable by-partlabel paths created during manual
-        # `parted` partitioning (see README "Same-disk dual-boot installation").
-        # Run `disko --mode format,mount --flake .#uontabc` once after manual
-        # parted; disko is idempotent (skips mkfs when blkid sees an existing
-        # filesystem, skips btrfs subvolume create when one already exists).
-        # destroy = false on every disk block — we never want disko to wipe
-        # partitions, even if someone accidentally runs `--mode destroy,...`.
+        # disko auto-injects fileSystems.* from the device declarations below.
+        # It only touches /dev/disk/by-partlabel/nixos-* (Windows partitions
+        # untouched), is idempotent (blkid / btrfs subvolume show guards), and
+        # every block has destroy = false so even --mode destroy refuses to
+        # wipe them. Run `disko --mode format,mount` after manual parted.
         disko.devices.disk = {
           nixos-esp = {
             type = "disk";
@@ -61,9 +58,12 @@
           };
         };
 
+        # disko does not set neededForBoot on generated mounts; stage-1 needs
+        # /persist (impermanence bind-mounts from it in the initrd).
+        fileSystems."/persist".neededForBoot = true;
+
         # btrfs subvolume rollback — mount toplevel (subvolid=5), then either
         # seed @root-blank (first boot) or roll root back to @root-blank.
-        # Still keyed on the same by-partlabel disko uses, so no surprises.
         boot.initrd.postDeviceCommands = lib.mkAfter ''
           mkdir -p /btrfs-tl
           mount -t btrfs -o subvolid=5 /dev/disk/by-partlabel/nixos-btrfs /btrfs-tl
