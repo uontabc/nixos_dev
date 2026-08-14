@@ -4,13 +4,24 @@
     let
       home = "/home/${config.my.name}";
 
+      logo = pkgs.writeText "nixos-ascii.txt" ''
+             _______
+            /       \
+           |  NixOS  |
+           |         |
+            \_______/
+              |   |
+             /|   |\
+            / |___| \
+      '';
+
       fastfetchConfig = pkgs.writeText "fastfetch.jsonc" (
         builtins.toJSON {
           "$schema" = "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json";
 
           logo = {
-            source = "nixos";
-            type = "small";
+            source = "${logo}";
+            type = "file";
             padding = {
               top = 2;
               left = 2;
