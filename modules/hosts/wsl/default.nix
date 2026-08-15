@@ -55,7 +55,7 @@
               ${pkgs.openssh}/bin/ssh-keygen -q -t ed25519 -f "$key" -N "" -C root@wsl
             fi
 
-            actual="$(${pkgs.openssh}/bin/ssh-keygen -y -f "$key")"
+            actual="$(${pkgs.openssh}/bin/ssh-keygen -y -f "$key" | ${pkgs.coreutils}/bin/cut -d' ' -f1-2)"
             expected="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKZ2ZTdB7qpgtPQW2hg2yog8nKaK8bRL7qYzK/EoKkrN"
             if [ "$actual" != "$expected" ]; then
               echo "[vaultix] FATAL: host key does not match the configured hostPubkey." >&2

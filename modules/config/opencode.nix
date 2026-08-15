@@ -40,7 +40,16 @@
         serviceConfig.Type = "oneshot";
         path = [ pkgs.coreutils ];
         script = ''
+          set -e
           install -d -o ${config.my.name} -g users -m 0700 ${authDir}
+          # vaultix atomically re-links /run/vaultix while re-deploying, which
+          # makes `install` abort with "replaced while being copied". Retry.
+          for i in $(seq 1 10); do
+            if install -o ${config.my.name} -g users -m 0600 /run/vaultix/opencode-auth ${authDir}/auth.json 2>/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
           install -o ${config.my.name} -g users -m 0600 /run/vaultix/opencode-auth ${authDir}/auth.json
         '';
       };
