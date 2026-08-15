@@ -296,6 +296,10 @@
       # `~/.config/nvim/` dir is left for any local overrides; nixvim bakes its
       # config into the wrapper, so there is no init.lua to symlink anymore.
       systemd.tmpfiles.rules = [
+        # Create the parent dir too: tmpfiles creates intermediate dirs as
+        # root, so `nvim` itself would be root-owned and neovim couldn't write
+        # its shada/lsp/logs there (E886, Permission denied on every start).
+        "d ${home}/.local/state/nvim 0755 ${config.my.name} users -"
         "d ${home}/.local/state/nvim/undo 0755 ${config.my.name} users -"
         "d ${home}/.config/nvim 0755 ${config.my.name} users -"
       ];

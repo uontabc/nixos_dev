@@ -12,7 +12,7 @@
 
       fonts.fontconfig = {
         defaultFonts = {
-          monospace = [ "FantasqueSansMono Nerd Font" ];
+          monospace = [ "FantasqueSansM Nerd Font Mono" ];
         };
       };
     };

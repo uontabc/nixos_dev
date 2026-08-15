@@ -36,6 +36,7 @@
             "dev"
             ".ssh"
             ".local/share"
+            ".local/state"
             ".gnupg"
           ];
 

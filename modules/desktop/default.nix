@@ -10,6 +10,7 @@
         niri
         kitty
         qt
+        fcitx5
         fonts
       ];
 

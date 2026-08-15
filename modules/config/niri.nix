@@ -4,9 +4,21 @@
     let
       home = "/home/${config.my.name}";
       niriConfig = pkgs.writeText "niri-config.kdl" ''
+        // Ask clients to omit their decorations so niri draws consistent
+        // frames that follow the window corner radius below.
+        prefer-no-csd
+
+        // Four permanent workspaces, always present in the bar.
+        workspace "1"
+        workspace "2"
+        workspace "3"
+        workspace "4"
+
         input {
             keyboard {
-                xkb { layout "us" }
+                xkb {
+                    layout "us"
+                }
                 numlock
                 repeat-rate 25
                 repeat-delay 600
@@ -16,12 +28,9 @@
                 tap
                 dwt
                 drag-lock
-                // natural-scroll
-                // accel-profile "flat"
             }
 
             mouse {
-                // natural-scroll
                 accel-profile "flat"
             }
         }
@@ -35,95 +44,99 @@
             XKB_DEFAULT_LAYOUT "us"
         }
 
+        spawn-at-startup "fcitx5" "-d"
+        // Open a terminal on login; always-center-single-column below makes it
+        // fill a single centered column (margins on both sides).
+        spawn-at-startup "kitty"
+
         binds {
-            Mod+R { reload-config; }
+            Mod+Shift+E { quit; }
+            Mod+Q { close-window; }
 
-            Mod+Shift+Q { quit; }
-            Mod+Q { close-focus-requested; }
+            Mod+D  { spawn "noctalia" "msg" "panel-toggle" "launcher"; }
+            Mod+S      { spawn "noctalia" "msg" "panel-toggle" "control-center"; }
+            Mod+Comma  { spawn "noctalia" "msg" "settings-toggle"; }
 
-            Mod+Space action.spawn "noctalia" ["msg" "panel-toggle" "launcher"]
-            Mod+S     action.spawn "noctalia" ["msg" "panel-toggle" "control-center"]
-            Mod+Comma action.spawn "noctalia" ["msg" "settings-toggle"]
+            Mod+Return { spawn "kitty"; }
+            Mod+E      { spawn "kitty" "-e" "yazi"; }
+            // Mod+Shift+E { spawn "kitty" "-e" "spf"; }
 
-            Mod+Return       action.spawn "kitty" []
-            Mod+E            action.spawn "kitty" ["-e" "yazi"]
-            Mod+Shift+E      action.spawn "kitty" ["-e" "spf"]
+            XF86AudioRaiseVolume  { spawn "noctalia" "msg" "volume-up"; }
+            XF86AudioLowerVolume  { spawn "noctalia" "msg" "volume-down"; }
+            XF86AudioMute         { spawn "noctalia" "msg" "volume-mute"; }
+            XF86MonBrightnessUp   { spawn "noctalia" "msg" "brightness-up"; }
+            XF86MonBrightnessDown { spawn "noctalia" "msg" "brightness-down"; }
 
-            XF86AudioRaiseVolume    action.spawn "noctalia" ["msg" "volume-up"]
-            XF86AudioLowerVolume    action.spawn "noctalia" ["msg" "volume-down"]
-            XF86AudioMute           action.spawn "noctalia" ["msg" "volume-mute"]
-            XF86MonBrightnessUp     action.spawn "noctalia" ["msg" "brightness-up"]
-            XF86MonBrightnessDown   action.spawn "noctalia" ["msg" "brightness-down"]
+            Mod+H { focus-column-left; }
+            Mod+L { focus-column-right; }
+            Mod+K { focus-window-up; }
+            Mod+J { focus-window-down; }
+            Mod+Left  { focus-column-left; }
+            Mod+Right { focus-column-right; }
+            Mod+Up    { focus-window-up; }
+            Mod+Down  { focus-window-down; }
+            Mod+Tab   { focus-window-down; }
 
-            Mod+H focus-column-left
-            Mod+L focus-column-right
-            Mod+K focus-window-up
-            Mod+J focus-window-down
-            Mod+Left  focus-column-left
-            Mod+Right focus-column-right
-            Mod+Up    focus-window-up
-            Mod+Down  focus-window-down
-            Mod+Tab   focus-window-down
+            Mod+Shift+H { move-column-left; }
+            Mod+Shift+L { move-column-right; }
+            Mod+Shift+K { move-window-up; }
+            Mod+Shift+J { move-window-down; }
 
-            Mod+Shift+H move-window-left
-            Mod+Shift+L move-window-right
-            Mod+Shift+K move-window-up
-            Mod+Shift+J move-window-down
+            Mod+1 { focus-workspace 1; }
+            Mod+2 { focus-workspace 2; }
+            Mod+3 { focus-workspace 3; }
+            Mod+4 { focus-workspace 4; }
 
-            Mod+1 focus-workspace 1
-            Mod+2 focus-workspace 2
-            Mod+3 focus-workspace 3
-            Mod+4 focus-workspace 4
-            Mod+5 focus-workspace 5
-            Mod+6 focus-workspace 6
-            Mod+7 focus-workspace 7
-            Mod+8 focus-workspace 8
-            Mod+9 focus-workspace 9
+            Mod+Shift+1 { move-window-to-workspace 1; }
+            Mod+Shift+2 { move-window-to-workspace 2; }
+            Mod+Shift+3 { move-window-to-workspace 3; }
+            Mod+Shift+4 { move-window-to-workspace 4; }
 
-            Mod+Shift+1 move-to-workspace 1
-            Mod+Shift+2 move-to-workspace 2
-            Mod+Shift+3 move-to-workspace 3
-            Mod+Shift+4 move-to-workspace 4
-            Mod+Shift+5 move-to-workspace 5
-            Mod+Shift+6 move-to-workspace 6
-            Mod+Shift+7 move-to-workspace 7
-            Mod+Shift+8 move-to-workspace 8
-            Mod+Shift+9 move-to-workspace 9
+            Mod+Space { toggle-window-floating; }
+            // NOTE: `toggle-windowed-fullscreen` is a no-op in niri 26.04
+            // (verified via IPC on both xdg and XWayland windows), so bind the
+            // real fullscreen action which actually works.
+            Mod+Shift+F         { fullscreen-window; }
+            Mod+F   { switch-preset-column-width-back; }
+            Mod+R    { switch-preset-column-width; }
 
-            Mod+Backspace toggle-window-floating
-            Mod+F toggle-windowed-fullscreen
-            Mod+Shift+F toggle-column-width "fixed"
+            Mod+Minus { consume-window-into-column; }
+            Mod+Equal { expel-window-from-column; }
 
-            Mod+Minus       consume-window-into-column
-            Mod+Equal       expel-window-from-column
+            Mod+O          { toggle-overview; }
+            Mod+Shift+Tab { toggle-overview; }
 
-            Mod+G         action.toggle-overview
-            Mod+Shift+Tab toggle-overview
+            Print            { screenshot-screen; }
+            Shift+Print      { screenshot-window; }
+            Ctrl+Shift+Print { screenshot; }
+        }
 
-            Mod+M quit
-
-            Print               action.screenshot-screen
-            Shift+Print         action.screenshot-window
-            Ctrl+Shift+Print    action.screenshot
+        // Let noctalia's blurred/tinted backdrop (wallpaper) show in the
+        // niri overview instead of a flat background color.
+        layer-rule {
+            match namespace="^noctalia-backdrop"
+            place-within-backdrop true
         }
 
         output "eDP-1" {
-            mode "2560x1600@240Hz"
-            scale 1.6
+            mode "2560x1600@240"
+            scale 1.5
             position x=0 y=0
         }
 
         output "DP-1" {
-            mode "2560x1440@210Hz"
+            mode "2560x1440@210"
             position x=2560 y=0
         }
 
         layout {
-            focus-ring { width 1; off; }
-            border { width 1; off; }
+            focus-ring { off; }
+            border { off; }
 
-            gap 20
+            gaps 20
             center-focused-column "never"
+            // A lone column (e.g. the startup kitty) is centered on screen.
+            always-center-single-column true
 
             preset-column-widths {
                 proportion 0.5
@@ -132,17 +145,38 @@
             }
 
             default-column-width { proportion 0.85; }
+
+            shadow {
+                on
+                softness 30
+                spread 2
+                offset x=0 y=4
+                color "#00000064"
+            }
+        }
+
+        // Rounded corners for every window.
+        window-rule {
+            geometry-corner-radius 12
+            clip-to-geometry true
         }
 
         animations {
-            window-open { duration 250; }
-            window-close { duration 250; }
-            window-movement { duration 250; }
-            workspace-switch { duration 250; }
-            horizontal-view-shift { duration 250; }
+            window-open {
+                duration-ms 250
+                curve "ease-out-expo"
+            }
+            window-close {
+                duration-ms 250
+                curve "ease-out-quad"
+            }
+            window-movement { spring damping-ratio=1.0 stiffness=800 epsilon=0.0001; }
+            window-resize { spring damping-ratio=1.0 stiffness=800 epsilon=0.0001; }
+            workspace-switch { spring damping-ratio=1.0 stiffness=1000 epsilon=0.0001; }
+            horizontal-view-movement { spring damping-ratio=1.0 stiffness=800 epsilon=0.0001; }
         }
 
-        cursor { xcursor-theme default; xcursor-size 22; }
+        cursor { xcursor-theme "default"; xcursor-size 22; }
         hotkey-overlay { skip-at-startup; }
       '';
     in
