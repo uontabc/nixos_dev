@@ -639,6 +639,15 @@ sudo nixos-rebuild switch --flake /etc/nixos#wsl
 
 这会启用完整的 `base` 配置（用户 onyx、nix 设置、nh、git 等）。
 
+> **仅首次重建**——Nix 会警告 `ignoring untrusted flake configuration setting 'substituters'`，因为本仓库加入 `trusted-flakes` 之前，flake 的 `nixConfig` 不受信任。一次性接受：
+>
+> ```bash
+> sudo nixos-rebuild switch --flake /etc/nixos#wsl --accept-flake-config
+> # 或：echo 'trusted-flakes = path:/home/onyx/nixos_dev' | sudo tee -a /etc/nix/nix.conf
+> ```
+>
+> 这次重建后，`modules/config/nix.nix` 会自己设置 `nix.settings.trusted-flakes`，警告不会再出现。
+
 ### 在 WSL 内日常更新
 
 日常使用请在家目录保留一个工作克隆（`/etc/nixos` 里的烘焙副本是静态快照，不是 git 仓库）：

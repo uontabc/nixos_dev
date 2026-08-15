@@ -638,6 +638,15 @@ sudo nixos-rebuild switch --flake /etc/nixos#wsl
 
 This enables the complete `base` profile (user onyx, nix settings, nh, git, etc.) on top of the WSL environment.
 
+> **First rebuild only** — Nix will warn `ignoring untrusted flake configuration setting 'substituters'` because the flake's `nixConfig` is untrusted until this repo is listed in `trusted-flakes`. Accept it once:
+>
+> ```bash
+> sudo nixos-rebuild switch --flake /etc/nixos#wsl --accept-flake-config
+> # or: echo 'trusted-flakes = path:/home/onyx/nixos_dev' | sudo tee -a /etc/nix/nix.conf
+> ```
+>
+> After that rebuild, `modules/config/nix.nix` sets `nix.settings.trusted-flakes` itself and the warning never comes back.
+
 ### Manage updates from inside WSL
 
 For day-to-day use, keep a working clone in your home directory (the baked-in copy at `/etc/nixos` is a static snapshot and not a git repo):
