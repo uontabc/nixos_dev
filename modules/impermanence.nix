@@ -32,9 +32,15 @@
             "Music"
             "Videos"
             "Projects"
+            # Writable tree shared into the docker-dev microvm at /workspace.
+            "dev"
             ".ssh"
             ".local/share"
             ".gnupg"
+          ];
+
+          files = [
+            ".zsh_history"
           ];
         };
       };

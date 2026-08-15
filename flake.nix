@@ -1,6 +1,20 @@
 {
   outputs = inputs: inputs.flake-parts.lib.mkFlake { inherit inputs; } (inputs.import-tree ./modules);
 
+  # Mirrors first (fast in China), official cache as fallback — same setup as
+  # modules/config/nix.nix, but applied as soon as this flake is trusted
+  # (nix.settings.accept-flake-config), so fresh machines get the mirrors
+  # during `nixos-install` / `nix develop` too.
+  nixConfig = {
+    extra-substituters = [
+      "https://mirrors.ustc.edu.cn/nix-channels/store"
+      "https://mirror.sjtu.edu.cn/nix-channels/store"
+    ];
+    extra-trusted-public-keys = [
+      "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY="
+    ];
+  };
+
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
     flake-parts.url = "github:hercules-ci/flake-parts";

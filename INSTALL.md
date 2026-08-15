@@ -203,7 +203,7 @@ findmnt / /nix /persist
 
 > 想改密码：在任意机器上运行 `mkpasswd -m sha-512` 生成新 hash，替换 `modules/users.nix` 中的 `hashedPassword` 后 `nh os switch`，用新密码登录验证即可。
 
-持久化清单见 `modules/impermanence.nix`：`/var/lib/nixos`、`/var/lib/systemd`、`/var/lib/NetworkManager`、`/var/log`、`/etc/ssh/ssh_host_*_key`、`/etc/machine-id`，以及用户目录下的 `Documents`、`Downloads`、`.ssh`、`.gnupg`、`.local/share`、`Projects` 等。
+持久化清单见 `modules/impermanence.nix`：`/var/lib/nixos`、`/var/lib/systemd`、`/var/lib/NetworkManager`、`/var/log`、`/etc/ssh/ssh_host_*_key`、`/etc/machine-id`，以及用户目录下的 `Documents`、`Downloads`、`.ssh`、`.gnupg`、`.local/share`、`dev`（microvm 共享目录）、`Projects` 等，另有 `.zsh_history` 文件持久化。
 
 ---
 
@@ -295,7 +295,7 @@ sudo nixos-rebuild switch --flake /home/onyx/nixos_dev#uontabc --rollback
 
 ### 7.1 docker-dev 微虚拟机
 
-`uontabc` 启用了 [microvm.nix](https://github.com/microvm-nix/microvm.nix) 框架，声明式定义了一台 **docker-dev** 微虚拟机（QEMU + KVM，2GB 内存 / 2 vCPU）。相比 `nixos-container`，microvm 是真正的虚拟机（独立内核、独占内存/IO），隔离更强、性能接近裸机。
+`uontabc` 启用了 [microvm.nix](https://github.com/microvm-nix/microvm.nix) 框架，声明式定义了一台 **docker-dev** 微虚拟机（QEMU + KVM，2.5GB 内存 / 2 vCPU；不用整 2GB 是因为 QEMU 在恰好 2GB guest 内存时会挂起）。相比 `nixos-container`，microvm 是真正的虚拟机（独立内核、独占内存/IO），隔离更强、性能接近裸机。
 
 配置要点（`modules/microvm.nix`）：
 

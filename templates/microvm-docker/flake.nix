@@ -29,7 +29,8 @@
 
               microvm = {
                 hypervisor = "qemu";
-                mem = 2048;
+                # Not exactly 2048MiB: QEMU hangs with exactly 2GB guest memory.
+                mem = 2560;
                 vcpu = 2;
                 shares = [
                   {

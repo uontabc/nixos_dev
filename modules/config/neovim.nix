@@ -284,7 +284,6 @@
       # `vim`/`vi` aliases are re-created as real binaries on PATH so
       # non-interactive callers (e.g. git) keep working.
       environment.systemPackages = with pkgs; [
-        gcc # C compiler (rare at runtime — treesitter grammars ship prebuilt)
         ripgrep # telescope live_grep
         fd # telescope find_files
 

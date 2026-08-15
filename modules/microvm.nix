@@ -18,7 +18,9 @@
 
           microvm = {
             hypervisor = "qemu";
-            mem = 2048;
+            # Not exactly 2048MiB: QEMU hangs with exactly 2GB of guest memory
+            # (microvm.nix checks for this and warns at eval time).
+            mem = 2560;
             vcpu = 2;
             # Share the host nix store read-only, plus a writable dev tree.
             shares = [
