@@ -5,14 +5,14 @@
         noto-fonts
         noto-fonts-cjk-sans
         noto-fonts-color-emoji
-        # Nerd Font patched JetBrains Mono — required for the icons used by
-        # nvim web-devicons/lualine/nvim-tree and kitty.
-        nerd-fonts.jetbrains-mono
+        # Nerd Font patched Fantasque Sans Mono — required for the icons used
+        # by nvim web-devicons/lualine/nvim-tree and kitty.
+        nerd-fonts.fantasque-sans-mono
       ];
 
       fonts.fontconfig = {
         defaultFonts = {
-          monospace = [ "JetBrainsMono Nerd Font" ];
+          monospace = [ "FantasqueSansMono Nerd Font" ];
         };
       };
     };

@@ -3,7 +3,7 @@
     { pkgs, config, ... }:
     let
       kittyConfig = pkgs.writeText "kitty.conf" ''
-        font_family      JetBrainsMono Nerd Font
+        font_family      FantasqueSansMono Nerd Font
         font_size        12.0
         scrollback_lines 10000
         remember_window_size no
