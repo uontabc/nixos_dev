@@ -665,6 +665,12 @@ sudo nixos-rebuild switch --flake ~/nixos_dev#wsl
 
 重建立即生效；若 systemd 单元卡住，用 `wsl --shutdown` 重启发行版。
 
+### WSL：Windows Terminal 里 nvim 图标缺失
+
+在 **Windows Terminal** 里跑 WSL 的 nvim 时，字形（lualine/nvim-tree 图标）来自 **Windows 侧**字体，与 NixOS 无关。在 Windows 上装补丁字体（如 [JetBrainsMono Nerd Font](https://www.nerdfonts.com/font-downloads)），并在 Windows Terminal 里设置：*设置 → 你的配置文件 → 外观 → 字体 → `JetBrainsMono Nerd Font`*。
+
+（NixOS 侧 `base` 已装 `nerd-fonts.jetbrains-mono`，WSLg 下的 GUI 应用如 kitty 渲染正常。）
+
 ### 故障排查：root 权限 / 忘记密码
 
 NixOS-WSL 构建根文件系统时使用 `--no-root-passwd`，所以 **root 无密码**，`sudo` 要求输入**当前用户**的密码（onyx / `changeme`，改过就用自己的）。若忘记用户密码或需要 root，无需 sudo：

@@ -10,6 +10,7 @@
         git
         opencode
         neovim
+        fonts
       ];
 
       hardware.enableRedistributableFirmware = true;

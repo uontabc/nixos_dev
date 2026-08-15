@@ -664,6 +664,12 @@ sudo nixos-rebuild switch --flake ~/nixos_dev#wsl
 
 Rebuilds take effect immediately; restart the distro with `wsl --shutdown` if systemd units are stuck.
 
+### WSL: nvim icons are missing in Windows Terminal
+
+When you run nvim inside WSL from **Windows Terminal**, glyphs (lualine/nvim-tree icons) come from the *Windows* side font, not from NixOS. Install a patched font on Windows (e.g. [JetBrainsMono Nerd Font](https://www.nerdfonts.com/font-downloads)) and set it in Windows Terminal: *Settings → your profile → Appearance → Font face → `JetBrainsMono Nerd Font`*.
+
+(The NixOS side already ships `nerd-fonts.jetbrains-mono` in `base`, so GUI apps under WSLg — e.g. kitty — render correctly.)
+
 ### Troubleshooting: root access / forgotten password
 
 NixOS-WSL builds the root filesystem with `--no-root-passwd`, so **root has no password** and `sudo` asks for the *user's* password (onyx / `changeme` until you change it). If you forgot the user password, or need root without sudo:
