@@ -14,6 +14,7 @@
           "/var/lib/bluetooth"
           "/var/log"
           "/etc/NetworkManager/system-connections"
+          "/etc/daed"
         ];
 
         files = [
