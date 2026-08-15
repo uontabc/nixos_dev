@@ -1,52 +1,154 @@
 { pkgs }:
+# Starship theme: the official "no-empty-icons" preset
+# (https://starship.rs/presets/#no-empty-icons) — toolset icons are only
+# shown when the toolset is actually detected.
+#
+# `host` is symlinked to ~/.config/starship.toml by modules/config/zsh.nix;
+# `devshell` is pointed at via $STARSHIP_CONFIG by modules/devshell.nix.
 let
-  theme = {
-    format = "$directory$git_branch$git_status$character";
+  preset = ''
+    "$schema" = 'https://starship.rs/config-schema.json'
 
-    directory = {
-      truncation_length = 3;
-      truncation_symbol = "…/";
-      style = "bold bright-blue";
-      format = "[$path]($style)";
-      substitutions = { "~" = ""; };
-    };
+    [buf]
+    format = '(with [$symbol($version )]($style))'
 
-    git_branch = {
-      symbol = "|";
-      style = "bold purple";
-      format = "[$symbol$branch]($style)";
-    };
+    [bun]
+    format = '(via [$symbol($version )]($style))'
 
-    git_status = {
-      style = "bold bright-yellow";
-      format = "[$all_status$ahead_behind]($style)";
-      ahead = ">";
-      behind = "<";
-      diverged = "<>";
-      staged = "+";
-      modified = "*";
-      deleted = "-";
-      renamed = "~";
-      untracked = "?";
-      conflicted = "!";
-    };
+    [c]
+    format = '(via [$symbol($version(-$name) )]($style))'
 
-    character = {
-      success_symbol = "[❯](bold green)";
-      error_symbol = "[❯](bold red)";
-      vicmd_symbol = "[❮](bold yellow)";
-    };
-  };
+    [cpp]
+    format = '(via [$symbol($version(-$name) )]($style))'
 
-  toml = pkgs.formats.toml { };
+    [cmake]
+    format = '(via [$symbol($version )]($style))'
+
+    [cobol]
+    format = '(via [$symbol($version )]($style))'
+
+    [crystal]
+    format = '(via [$symbol($version )]($style))'
+
+    [daml]
+    format = '(via [$symbol($version )]($style))'
+
+    [dart]
+    format = '(via [$symbol($version )]($style))'
+
+    [deno]
+    format = '(via [$symbol($version )]($style))'
+
+    [dotnet]
+    format = '(via [$symbol($version )(🎯 $tfm )]($style))'
+
+    [elixir]
+    format = '(via [$symbol($version \(OTP $otp_version\) )]($style))'
+
+    [elm]
+    format = '(via [$symbol($version )]($style))'
+
+    [erlang]
+    format = '(via [$symbol($version )]($style))'
+
+    [fennel]
+    format = '(via [$symbol($version )]($style))'
+
+    [fortran]
+    format = "(via [$symbol($version )]($style))"
+
+    [gleam]
+    format = '(via [$symbol($version )]($style))'
+
+    [golang]
+    format = '(via [$symbol($version )]($style))'
+
+    [haskell]
+    format = '(via [$symbol($version )]($style))'
+
+    [helm]
+    format = '(via [$symbol($version )]($style))'
+
+    [java]
+    format = '(via [$symbol($version )]($style))'
+
+    [julia]
+    format = '(via [$symbol($version )]($style))'
+
+    [kotlin]
+    format = '(via [$symbol($version )]($style))'
+
+    [lua]
+    format = '(via [$symbol($version )]($style))'
+
+    [nim]
+    format = '(via [$symbol($version )]($style))'
+
+    [nodejs]
+    format = '(via [$symbol($version )]($style))'
+
+    [ocaml]
+    format = '(via [$symbol($version )(\($switch_indicator$switch_name\) )]($style))'
+
+    [opa]
+    format = '(via [$symbol($version )]($style))'
+
+    [package]
+    format = '(is [$symbol$version]($style) )'
+
+    [perl]
+    format = '(via [$symbol($version )]($style))'
+
+    [php]
+    format = '(via [$symbol($version )]($style))'
+
+    [purescript]
+    format = '(via [$symbol($version )]($style))'
+
+    [python]
+    format = '(via [''${symbol}''${pyenv_prefix}(''${version} )(\($virtualenv\) )]($style))'
+
+    [quarto]
+    format = '(via [$symbol($version )]($style))'
+
+    [raku]
+    format = '(via [$symbol($version-$vm_version )]($style))'
+
+    [red]
+    format = '(via [$symbol($version )]($style))'
+
+    [rlang]
+    format = '(via [$symbol($version )]($style))'
+
+    [ruby]
+    format = '(via [$symbol($version )]($style))'
+
+    [rust]
+    format = '(via [$symbol($version )]($style))'
+
+    [scala]
+    format = '(via [$symbol($version )]($style))'
+
+    [swift]
+    format = '(via [$symbol($version )]($style))'
+
+    [typst]
+    format = '(via [$symbol($version )]($style))'
+
+    [vagrant]
+    format = '(via [$symbol($version )]($style))'
+
+    [vlang]
+    format = '(via [$symbol($version )]($style))'
+
+    [xmake]
+    format = '(via [$symbol($version )]($style))'
+
+    [zig]
+    format = '(via [$symbol($version )]($style))'
+  '';
 in
 {
-  host = toml.generate "starship.toml" theme;
-  devshell = toml.generate "starship-devshell.toml" (theme // {
-    format = "$nix_shell $directory$git_branch$git_status$character";
-    nix_shell = {
-      format = "[$symbol]($style)";
-      style = "bold purple";
-    };
-  });
+  host = pkgs.writeText "starship.toml" preset;
+  devshell = pkgs.writeText "starship-devshell.toml" preset;
 }
