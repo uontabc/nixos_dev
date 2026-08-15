@@ -33,6 +33,9 @@
             "Videos"
             "Projects"
             ".ssh"
+            # Master age identity used by vaultix (renc/edit apps); must survive
+            # the root rollback or every secret becomes undecryptable.
+            ".config/vaultix"
             ".local/share"
             ".gnupg"
           ];

@@ -208,7 +208,7 @@ findmnt / /nix /persist
 
 > 想改密码：在任意机器上运行 `mkpasswd -m sha-512` 生成新 hash，替换 `modules/users.nix` 中的 `hashedPassword` 后 `nh os switch`，用新密码登录验证即可。
 
-持久化清单见 `modules/impermanence.nix`：`/var/lib/nixos`、`/var/lib/systemd`、`/var/lib/NetworkManager`、`/var/log`、`/etc/ssh/ssh_host_*_key`、`/etc/machine-id`，以及用户目录下的 `Documents`、`Downloads`、`.ssh`、`.gnupg`、`.local/share`、`Projects` 等。
+持久化清单见 `modules/impermanence.nix`：`/var/lib/nixos`、`/var/lib/systemd`、`/var/lib/NetworkManager`、`/var/log`、`/etc/ssh/ssh_host_*_key`、`/etc/machine-id`，以及用户目录下的 `Documents`、`Downloads`、`.ssh`、`.gnupg`、`.local/share`、`.config/vaultix`、`Projects` 等（`.config/vaultix` 保存 vaultix 主 identity，必须持久化，否则重启后所有 secret 都无法解密）。
 
 ---
 
@@ -374,7 +374,7 @@ networking.wireguard.interfaces.wg0.privateKeyFile = config.vaultix.secrets.wire
    ```
 3. 声明所需 secret，跑 `renc` 生成 `secrets/cache/<名字>/` 并提交。
 
-> `wsl` 主机没有 sshd（不会生成 host key），所以它显式声明了 `hostKeys`（一个固定路径的 ed25519 key），需要先在 WSL 里生成一次该 key 文件；`uontabc` 的 `hostPubkey` 目前是占位符，装机后按 6.5 第 1 步替换并重跑 `renc`。
+> `wsl` 主机没有 sshd（不会自动生成 host key），所以它显式声明了 `hostKeys`（一个固定路径的 ed25519 key）。系统里内置了 `vaultix-hostkey.service`：开机时若该 key 不存在会自动生成，并**校验其公钥与配置里的 `hostPubkey` 是否一致**——不一致（如重新导入 tarball 后随机生成了新 key）会直接报错并提示重跑 `renc`，而不是静默失效。`uontabc` 的 `hostPubkey` 目前是占位符，装机后按 6.5 第 1 步替换并重跑 `renc`；在替换前构建 `uontabc` 会给出警告。
 
 ### 6.6 示例：opencode 的 API key
 
