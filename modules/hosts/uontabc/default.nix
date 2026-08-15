@@ -29,6 +29,10 @@
           description = "Impermanence: roll back root btrfs subvolume";
           wantedBy = [ "initrd.target" ];
           before = [ "sysroot.mount" ];
+          # Wait for the btrfs device to appear — by-partlabel symlinks are
+          # created by udev and may not exist yet at initrd startup.
+          after = [ "dev-disk-by\\x2dpartlabel-nixos\\x2dbtrfs.device" ];
+          requires = [ "dev-disk-by\\x2dpartlabel-nixos\\x2dbtrfs.device" ];
           unitConfig.DefaultDependencies = "no";
           serviceConfig = {
             Type = "oneshot";

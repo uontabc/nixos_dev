@@ -13,11 +13,41 @@
           autoupdate = false;
           # Don't share sessions unless explicitly asked.
           share = "manual";
+
+          mcp = {
+            # GitHub API — needs a token. Set GITHUB_PERSONAL_ACCESS_TOKEN in
+            # your shell/env; opencode expands ${VAR} at startup. Without it the
+            # server fails to start but the others keep working.
+            github = {
+              type = "local";
+              command = [ "npx" "-y" "@modelcontextprotocol/server-github" ];
+              environment.GITHUB_PERSONAL_ACCESS_TOKEN = "\${GITHUB_PERSONAL_ACCESS_TOKEN}";
+            };
+
+            # Read/write files outside the workspace (the whole home dir).
+            filesystem = {
+              type = "local";
+              command = [ "npx" "-y" "@modelcontextprotocol/server-filesystem" home ];
+            };
+
+            # Real NixOS packages/options search (no more hallucinated names).
+            mcp-nixos = {
+              type = "local";
+              command = [ "mcp-nixos" ];
+            };
+          };
+
+          # nil — the Nix language server.
+          lsp.nil = {
+            command = [ "nil" ];
+            extensions = [ "nix" ];
+          };
         }
       );
     in
     {
-      my.packages = [ pkgs.opencode ];
+      # nodejs/npx is required by the npx-based MCP servers.
+      my.packages = [ pkgs.opencode pkgs.nodejs pkgs.nil pkgs.mcp-nixos ];
 
       systemd.tmpfiles.rules = [
         "d ${home}/.config/opencode 0755 ${config.my.name} users -"

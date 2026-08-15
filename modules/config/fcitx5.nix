@@ -5,21 +5,21 @@
       home = "/home/${config.my.name}";
       rimeDir = "${home}/.local/share/fcitx5/rime";
 
-      # fcitx5 macOS-style theme (macos12-dark / macos12-light), not packaged
-      # in nixpkgs — fetch from upstream and drop into the themes dir.
-      fcitx5-macos12 = pkgs.stdenv.mkDerivation {
-        pname = "fcitx5-theme-macos12";
-        version = "2024-11-17";
+      # The active theme. Ori is not packaged in nixpkgs — fetch from upstream
+      # and drop into the themes dir.
+      fcitx5-ori = pkgs.stdenv.mkDerivation {
+        pname = "fcitx5-theme-ori";
+        version = "2026-08-16";
         src = pkgs.fetchFromGitHub {
-          owner = "witt-bit";
-          repo = "fcitx5-theme-macos12";
-          rev = "ff92fdedb320a52c23b6eb8c20f1c012f9c313fe";
-          sha256 = "0lw9ipw462k71yw6chp23c4gngiplmwbyqf6vpxs3w49z7xzfi8z";
+          owner = "Reverier-Xu";
+          repo = "Ori-fcitx5";
+          rev = "d2cf5df38f11e4e14dcf9436af5b9f8fa0087c55";
+          sha256 = "104hj2a9vj3s1sv43pgfdqdq28fa5badpsr6c1j3b1k94k0bz8z3";
         };
         installPhase = ''
           runHook preInstall
           mkdir -p $out/share/fcitx5/themes
-          cp -r macos12-dark macos12-light $out/share/fcitx5/themes/
+          cp -r OriDark OriLight $out/share/fcitx5/themes/
           runHook postInstall
         '';
       };
@@ -43,20 +43,15 @@
           pkgs.fcitx5-gtk
           pkgs.qt6Packages.fcitx5-qt
           pkgs.qt6Packages.fcitx5-configtool
-          # UI themes. Available variants:
-          #   macOS:       macos12-dark (active), macos12-light
-          #   Nord:        Nord-Dark, Nord-Light
-          #   Material:    Material-Color-{black, blue, brown, deepPurple,
-          #                indigo, orange, pink, red, sakuraPink, teal}
-          fcitx5-macos12
-          pkgs.fcitx5-nord
-          pkgs.fcitx5-material-color
+          # The only theme we use (OriDark); switch to OriLight or use
+          # fcitx5-configtool at runtime.
+          fcitx5-ori
         ];
 
-        # Select the active theme (classicui). Switch the `Theme` value below
-        # to any variant above, or use `fcitx5-configtool` at runtime.
+        # Select the active theme (classicui). Use fcitx5-configtool to switch
+        # at runtime.
         fcitx5.settings.addons.classicui.globalSection = {
-          Theme = "macos12-dark";
+          Theme = "OriDark";
         };
       };
 
