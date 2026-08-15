@@ -10,7 +10,6 @@
 - nixpkgs 分支：`nixos-26.05`
 - 系统 Nix：**Lix**（来自 nixpkgs）
 - 包管理辅助：**nh**（`nh os switch` / `nh clean`）
-- 密钥管理：**vaultix**（age 加密的声明式 secrets，见第 6 节）
 - 开发环境：**microvm**（QEMU/KVM 微虚拟机，内置 `docker-dev` 沙箱）+ **dev-templates**（the-nix-way 多语言开发模板，见第 7 节）
 
 ---
@@ -19,14 +18,11 @@
 
 ```
 nixos_dev/
-├── flake.nix              # Flake 入口：输入源定义（nixpkgs、flake-parts、disko、impermanence、nixvim、noctalia、nixos-wsl、microvm、dev-templates、vaultix）
+├── flake.nix              # Flake 入口：输入源定义（nixpkgs、flake-parts、disko、impermanence、nixvim、noctalia、nixos-wsl、microvm、dev-templates）
 ├── flake.lock             # 依赖锁定文件
-├── secrets/               # vaultix 密钥仓库（见第 6 节）
-│   ├── *.age              # age 加密的 secret 文件（进入 git）
-│   └── cache/<host>/      # renc 生成的主机级重加密产物（进入 git）
 ├── templates/             # 自带的 flake 模板（microvm-docker；其余语言模板来自 the-nix-way/dev-templates 重导出）
 └── modules/
-    ├── base.nix           # 所有主机共用的基础模块（用户、Nix、i18n、nh、vaultix、编辑器、shell 等）
+    ├── base.nix           # 所有主机共用的基础模块（用户、Nix、i18n、nh、编辑器、shell 等）
     ├── users.nix          # 用户定义（默认用户名 onyx），含 my.name / my.packages 自定义选项
     ├── nix.nix            # Lix、国内镜像源（USTC/SJTU）、Flake 实验特性
     ├── env.nix             # 全局环境变量（Wayland、XDG）
@@ -36,12 +32,11 @@ nixos_dev/
     ├── impermanence.nix    # /persist 持久化目录/文件清单
     ├── disko.nix           # 引入 disko 的 NixOS 模块（分区/文件系统定义）
     ├── wsl.nix             # NixOS-WSL 模块（host: wsl 专用）
-    ├── vaultix.nix         # vaultix flake 模块：identity、secrets 目录、NixOS 模块接入
     ├── microvm.nix         # microvm.nix 接入：docker-dev 微虚拟机定义（仅 uontabc 启用，见第 7 节）
     ├── templates.nix       # flake 模板：重导出 dev-templates + 自带 microvm-docker
     ├── flake-parts.nix     # flake-parts 接入、pkgs 构造（允许 unfree）
     ├── systems.nix         # 支持的平台（x86_64-linux）
-    ├── lib/nixos.nix       # host 工厂：由 modules/hosts/* 自动生成 nixosConfigurations（含 vaultix 所需的 specialArgs.self）
+    ├── lib/nixos.nix       # host 工厂：由 modules/hosts/* 自动生成 nixosConfigurations
     ├── config/             # 各软件配置：niri、kitty、neovim、opencode、zsh、fastfetch、git、fonts、qt、i18n、nix
     ├── desktop/            # 桌面相关：niri、greetd、pipewire、xdg-portal、noctalia、xwayland、字体
     ├── hardware/           # 硬件相关：AMD CPU、NVIDIA、显卡、蓝牙、输入
@@ -208,7 +203,7 @@ findmnt / /nix /persist
 
 > 想改密码：在任意机器上运行 `mkpasswd -m sha-512` 生成新 hash，替换 `modules/users.nix` 中的 `hashedPassword` 后 `nh os switch`，用新密码登录验证即可。
 
-持久化清单见 `modules/impermanence.nix`：`/var/lib/nixos`、`/var/lib/systemd`、`/var/lib/NetworkManager`、`/var/log`、`/etc/ssh/ssh_host_*_key`、`/etc/machine-id`，以及用户目录下的 `Documents`、`Downloads`、`.ssh`、`.gnupg`、`.local/share`、`.config/vaultix`、`Projects` 等（`.config/vaultix` 保存 vaultix 主 identity，必须持久化，否则重启后所有 secret 都无法解密）。
+持久化清单见 `modules/impermanence.nix`：`/var/lib/nixos`、`/var/lib/systemd`、`/var/lib/NetworkManager`、`/var/log`、`/etc/ssh/ssh_host_*_key`、`/etc/machine-id`，以及用户目录下的 `Documents`、`Downloads`、`.ssh`、`.gnupg`、`.local/share`、`Projects` 等。
 
 ---
 
@@ -285,112 +280,14 @@ sudo nixos-rebuild switch --flake /home/onyx/nixos_dev#uontabc --rollback
 
 ---
 
-## 6. 密钥管理（vaultix）
+## 6. 凭据管理
 
-本仓库用 [vaultix](https://milieuim.github.io/vaultix/) 做声明式 secrets 管理（age 加密，思路类似 sops-nix / agenix-rekey）。整体依赖链：
+本仓库不使用声明式 secrets 工具（如 vaultix / sops-nix）。用户级凭据按各应用的默认位置存放：
 
-```
-你（age identity，仓库外）                ～～明文只在编辑/重加密时于本地短暂存在～～
-   │ nix run .#vaultix...edit / renc
-   ▼
-secrets/*.age（age 加密，进 git）
-   │ renc 按主机重加密
-   ▼
-secrets/cache/<host>/<hash>（进 git，随 flake 分发）
-   │ 主机开机时由系统里的 vaultix 解密单元处理
-   ▼
-/run/vaultix/<name>（root 可见的明文，仅在内存/运行时盘）
-```
+- **opencode**：API key 存放在 `~/.local/share/opencode/auth.json`（格式 `{"deepseek": {"api_key": "..."}}`）。用 `opencode auth login` 或手动写入该文件即可；`~/.local/share` 已由 impermanence 持久化，重启不丢。
+- **其他应用**：按各自默认路径（如 `~/.ssh/`、`~/.gnupg/`），这些目录同样在持久化清单里。
 
-### 6.1 目录与文件
-
-| 路径 | 作用 | 是否进 git |
-|------|------|-----------|
-| `~/.config/vaultix/identity` | 主 age identity（能解密所有 secret） | 否，仓库外 |
-| `secrets/*.age` | age 加密的 secret 文件 | 是 |
-| `secrets/cache/<host>/` | renc 按主机重加密的产物 | 是，必须提交 |
-
-> 主 identity 用**绝对路径字符串**写在 `modules/vaultix.nix`（`identity = "/home/onyx/.config/vaultix/identity"`），这样不会把私钥复制进 nix store。请自行备份好这个文件，丢了它所有 secret 都解不开。
-
-### 6.2 前置条件（本仓库已全部满足）
-
-- flake + `nix-command` 实验特性（`modules/nix.nix` 已开）
-- `services.userborn.enable = true`（`modules/vaultix.nix` 中自动开启，需 NixOS 24.11+）
-- `specialArgs` 传入 `self`（`modules/lib/nixos.nix` 已处理）
-
-### 6.3 首次准备：生成 identity
-
-若 `~/.config/vaultix/identity` 不存在：
-
-```bash
-nix run nixpkgs#age-keygen -- -o ~/.config/vaultix/identity
-chmod 600 ~/.config/vaultix/identity
-```
-
-新机器部署前，先在有 identity 的机器上把 `secrets/cache/` 生成好并提交（见 6.4），否则目标机的构建会因找不到 cache 而失败。
-
-### 6.4 日常流程
-
-**添加/修改 secret：**
-
-```bash
-# 1. 编辑（新建或修改）age 文件；旧文件会在 $EDITOR 中展示明文
-nix run .#vaultix.app.x86_64-linux.edit -- secrets/foo.age
-
-# 2. 在目标主机的模块里声明，例如 modules/hosts/wsl/default.nix：
-#      vaultix.secrets.foo = { };            # 默认对应 ./secrets/foo.age
-#      或 vaultix.secrets.foo = { file = ./secrets/foo.age; owner = "user"; ... };
-
-# 3. 提交 secret 文件，然后按主机重加密
-git add secrets/foo.age
-nix run .#vaultix.app.x86_64-linux.renc
-
-# 4. 把生成的 cache 一并提交（漏了部署时会报 "secrets haven't been re-encrypted"）
-git add secrets/cache
-git commit
-```
-
-**在模块中使用：** 解密后的明文路径为 `/run/vaultix/<name>`，例如：
-
-```nix
-vaultix.secrets.wireguard-key = { };
-# ...
-networking.wireguard.interfaces.wg0.privateKeyFile = config.vaultix.secrets.wireguard-key.path;
-```
-
-**删除 secret：** 删掉模块声明 + `secrets/*.age`，跑一遍 `renc`，提交。
-
-### 6.5 接入新主机
-
-每个主机都要有自己的**接收公钥**（vaultix 用它重加密 secret）：
-
-1. 在主机上确认 SSH host key 或专用 key 的公钥：
-   ```bash
-   cat /etc/ssh/ssh_host_ed25519_key.pub   # 主机已有 sshd 时
-   ```
-2. 写入该主机的 `hosts/<名字>/default.nix`：
-   ```nix
-   vaultix.settings.hostPubkey = "ssh-ed25519 AAAAC3...";   # 或 hostKeys 列表，见 wsl
-   ```
-3. 声明所需 secret，跑 `renc` 生成 `secrets/cache/<名字>/` 并提交。
-
-> `wsl` 主机没有 sshd（不会自动生成 host key），所以它显式声明了 `hostKeys`（一个固定路径的 ed25519 key）。系统里内置了 `vaultix-hostkey.service`：开机时若该 key 不存在会自动生成，并**校验其公钥与配置里的 `hostPubkey` 是否一致**——不一致（如重新导入 tarball 后随机生成了新 key）会直接报错并提示重跑 `renc`，而不是静默失效。`uontabc` 的 `hostPubkey` 目前是占位符，装机后按 6.5 第 1 步替换并重跑 `renc`；在替换前构建 `uontabc` 会给出警告。
-
-### 6.6 示例：opencode 的 API key
-
-opencode 的凭据存放在 `~/.local/share/opencode/auth.json`（格式 `{"deepseek": {"api_key": "..."}}`）。本仓库把**这个文件的完整内容**作为一个 vaultix secret 管理：
-
-1. secret 声明在 `modules/config/opencode.nix`（`vaultix.secrets.opencode-auth`，属主为当前用户、权限 0600）。
-2. 开机时 `opencode-auth.service` 把 `/run/vaultix/opencode-auth` 部署为 `~/.local/share/opencode/auth.json`。
-3. 换 key 流程：
-   ```bash
-   nix run .#vaultix.app.x86_64-linux.edit -- secrets/opencode-auth.age   # 把内容改为 {"deepseek": {"api_key": "..."}}
-   nix run .#vaultix.app.x86_64-linux.renc
-   git add secrets && git commit
-   nh os switch
-   ```
-
-> 注意：`/connect` 命令手动写入的 key 会被声明式部署覆盖；换 key 请走上述流程而不是 `/connect`。
+> 手动写入的凭据不会被任何声明式流程覆盖；改 key 直接在对应文件里改即可。
 
 ---
 
@@ -497,26 +394,10 @@ trusted-public-keys = [ "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGsp
 
 ### 8.6 添加/修改 host
 
-- 新主机：在 `modules/hosts/<名字>/default.nix` 里仿照 `uontabc` 写 `hosts.<名字> = { system, stateVersion, module }`，`lib/nixos.nix` 会自动生成 `nixosConfigurations.<名字>`；同目录下的 `flake.modules.nixos.<名字>.*` 会被自动附加到该主机。接入 vaultix 见 6.5。
+- 新主机：在 `modules/hosts/<名字>/default.nix` 里仿照 `uontabc` 写 `hosts.<名字> = { system, stateVersion, module }`，`lib/nixos.nix` 会自动生成 `nixosConfigurations.<名字>`；同目录下的 `flake.modules.nixos.<名字>.*` 会被自动附加到该主机。
 - 改用户：改 `modules/users.nix` 的 `my.name`，`impermanence.nix` 的用户目录、`nh.nix` 的 flake 路径、`wsl.nix` 的 `defaultUser` 都会跟随。
 
-### 8.7 构建报 "secret file path not exist" / "secrets haven't been re-encrypted"
-
-说明 flake 源码里找不到对应的 secret 文件或 cache：
-
-- `secret file path not exist: .../secrets/foo.age` → `secrets/foo.age` 没 `git add`（flake 只读取 git 树内的文件），或文件路径与 `vaultix.secrets.*` 声明不一致。
-- `secrets haven't been re-encrypted: .../fcb146...` → `secrets/cache/<host>/` 有新增但没提交。跑一遍 `nix run .#vaultix.app.x86_64-linux.renc`，再 `git add secrets/cache`。
-
-### 8.8 修改 secret 后其它主机没生效
-
-`edit` 只更新 `secrets/*.age`；每台主机的明文是 renc 时按其 host key 单独重加密的，改完必须重新 `nix run .#vaultix.app.x86_64-linux.renc` 并提交 `secrets/cache/`，否则目标机拿到的还是旧值。
-
-### 8.9 忘了 identity 的 passphrase / 换机器
-
-- 备份：`~/.config/vaultix/identity` 是唯一能解密所有 secret 的钥匙，换机器时把它（和 `hosts/wsl` 使用的 `/etc/ssh/ssh_host_ed25519_key` 及私钥）一起迁走。
-- 若 identity 丢失且没有 `extraRecipients` 备份，secret 无法恢复——只能删除 `secrets/*.age` 重新生成。
-
-### 8.10 microvm 启动失败：找不到 /dev/kvm
+### 8.7 microvm 启动失败：找不到 /dev/kvm
 
 `docker-dev` 是 KVM 加速虚拟机，没有 `/dev/kvm` 会启动失败。排查：
 

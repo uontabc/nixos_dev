@@ -16,11 +16,7 @@ result-*
 .DS_Store
 Thumbs.db
 
-# Vaultix secrets are age-encrypted (*.age) or re-encrypted per-host
-# (secrets/cache/) — both belong in git. Only plaintext must never be
-# committed, so guard the file names instead:
-# secrets/*.txt
-# secrets/*.plain
+# Sensitive files (opencode auth etc. are plaintext in the home dir, not repo)
 *.key
 *.pem
 secrets.nix

@@ -25,33 +25,9 @@
         "d ${authDir} 0700 ${config.my.name} users -"
       ];
 
-      # API keys live in ~/.local/share/opencode/auth.json; the content of the
-      # vaultix secret IS that file (e.g. {"deepseek": {"api_key": "..."}}).
-      vaultix.secrets.opencode-auth = {
-        owner = config.my.name;
-        group = "users";
-        mode = "0600";
-      };
-
-      systemd.services.opencode-auth = {
-        description = "Deploy opencode auth.json from vaultix secret";
-        after = [ "vaultix-activate.service" ];
-        wantedBy = [ "multi-user.target" ];
-        serviceConfig.Type = "oneshot";
-        path = [ pkgs.coreutils ];
-        script = ''
-          set -e
-          install -d -o ${config.my.name} -g users -m 0700 ${authDir}
-          # vaultix atomically re-links /run/vaultix while re-deploying, which
-          # makes `install` abort with "replaced while being copied". Retry.
-          for i in $(seq 1 10); do
-            if install -o ${config.my.name} -g users -m 0600 /run/vaultix/opencode-auth ${authDir}/auth.json 2>/dev/null; then
-              exit 0
-            fi
-            sleep 1
-          done
-          install -o ${config.my.name} -g users -m 0600 /run/vaultix/opencode-auth ${authDir}/auth.json
-        '';
-      };
+      # API keys live in ~/.local/share/opencode/auth.json
+      # (e.g. {"deepseek": {"api_key": "..."}}). Manage it manually:
+      #   opencode auth login   # or write the file yourself
+      # (`.local/share` is persisted by impermanence, so it survives reboots.)
     };
 }

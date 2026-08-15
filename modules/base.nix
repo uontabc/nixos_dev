@@ -7,7 +7,6 @@
         i18n
         env
         nh
-        vaultix
         git
         neovim
         opencode

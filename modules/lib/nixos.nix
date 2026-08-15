@@ -1,4 +1,4 @@
-{ inputs, config, withSystem, lib, self, ... }:
+{ inputs, config, withSystem, lib, ... }:
 let
   inherit (inputs.nixpkgs.lib) mapAttrs nixosSystem optional;
 in
@@ -20,9 +20,6 @@ in
       { pkgs, ... }:
       nixosSystem {
         inherit pkgs;
-        # Required by the vaultix NixOS module (locates the re-encrypted
-        # secret cache under the flake source).
-        specialArgs = { inherit self; };
         modules =
           let
             nixos = config.flake.modules.nixos;

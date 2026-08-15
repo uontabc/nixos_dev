@@ -3,15 +3,7 @@
     system = "x86_64-linux";
     stateVersion = "26.05";
     module =
-      { lib, pkgs, ... }:
-      let
-        # Placeholder until uontabc is installed. Replacing this with a valid
-        # pubkey is a hard requirement — secrets cached against this key cannot
-        # be decrypted by the real machine's host key, so they silently fail to
-        # deploy (see the `warnings` below).
-        vaultixHostPubkey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEQWSIUAXWVjjw6HZSRdfBaDYNZsoJCUVyG6JzSofkGU placeholder-for-uontabc";
-      in
-      {
+      { lib, pkgs, ... }: {
         imports = with config.flake.modules.nixos; [
           boot
           network
@@ -20,23 +12,6 @@
           microvm
           impermanence
           disko
-        ];
-
-        # Remind at build time that age secrets won't work on uontabc yet.
-        warnings = lib.mkIf (lib.hasSuffix "placeholder-for-uontabc" vaultixHostPubkey) [
-          ''
-            uontabc vaultix hostPubkey is still a placeholder.
-            Age secrets (opencode-auth) will NOT be decryptable on the real
-            machine until you:
-              1. install uontabc
-              2. get the real host key:
-                   ssh-keyscan uontabc | head -1
-                   # or: cat /etc/ssh/ssh_host_ed25519_key.pub
-              3. replace `vaultixHostPubkey` above
-              4. re-encrypt and commit the cache:
-                   nix run .#vaultix.app.x86_64-linux.renc
-                   git add secrets/cache && git commit
-          ''
         ];
 
         boot.initrd.availableKernelModules = [ "xhci_pci" "nvme" "usb_storage" "sd_mod" ];
@@ -79,8 +54,6 @@
 
         # btrfs-progs must be reachable from the systemd initrd environment.
         boot.initrd.systemd.storePaths = [ "${pkgs.btrfs-progs}/bin" ];
-
-        vaultix.settings = { hostPubkey = vaultixHostPubkey; };
       };
   };
 }
