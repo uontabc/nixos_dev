@@ -11,7 +11,6 @@
       ];
 
       fonts.fontconfig = {
-        defaultLocale = "zh_CN";
         defaultFonts = {
           monospace = [ "JetBrainsMono Nerd Font" ];
         };
