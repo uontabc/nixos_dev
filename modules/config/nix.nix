@@ -1,6 +1,5 @@
 { inputs, ... }: {
-  flake.modules.nixos.nix =
-    { config, ... }: {
+  flake.modules.nixos.nix = {
       nix.registry.nixpkgs.flake = inputs.nixpkgs;
 
       nix.settings = {
@@ -21,8 +20,7 @@
 
         # Trust our own flake's nixConfig (the mirror setup in flake.nix),
         # so `nh os switch` stops warning about "untrusted flake config".
-        # The flake is invoked via NH_FLAKE as a local path.
-        trusted-flakes = [ "path:/home/${config.my.name}/nixos_dev" ];
+        accept-flake-config = true;
       };
     };
 }
