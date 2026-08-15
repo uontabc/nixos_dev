@@ -34,6 +34,8 @@ nixos_dev/
     ├── wsl.nix             # NixOS-WSL 模块（host: wsl 专用）
     ├── microvm.nix         # microvm.nix 接入：docker-dev 微虚拟机定义（仅 uontabc 启用，见第 7 节）
     ├── templates.nix       # flake 模板：重导出 dev-templates + 自带 microvm-docker
+    ├── devshell.nix        # 仓库自带开发环境 `nix develop`（lix/nh/nixfmt/statix + starship，见第 8 节）
+    ├── _starship-theme.nix # starship 主题（no-empty-icons preset，host 与 devshell 共用）
     ├── flake-parts.nix     # flake-parts 接入、pkgs 构造（允许 unfree）
     ├── systems.nix         # 支持的平台（x86_64-linux）
     ├── lib/nixos.nix       # host 工厂：由 modules/hosts/* 自动生成 nixosConfigurations
@@ -331,7 +333,7 @@ docker run --rm -it -v /workspace:/src alpine sh
 
 - guest 根文件系统只读（依赖 `ro-store` 共享），在 guest 内不能 `nixos-rebuild`，安装包请直接在主机配置里加。
 - VM 状态目录：`/var/lib/microvms/docker-dev/`（含 `docker-data.img`、当前 runner 等）。
-- 需要 KVM：确认主机 BIOS 已开虚拟化且 `/dev/kvm` 存在（见 8.10）。
+- 需要 KVM：确认主机 BIOS 已开虚拟化且 `/dev/kvm` 存在（见 9.7）。
 
 ### 7.2 dev-templates（多语言开发模板）
 
@@ -359,9 +361,24 @@ nix run                          # 前台运行，SSH 端口映射 2222 → 22
 
 ---
 
-## 8. 常见问题与排错
+## 8. 仓库开发环境（nix develop）
 
-### 8.1 开机卡在滚动根目录 / 想回到"出厂状态"
+本仓库自带一个 `devShell`（`modules/devshell.nix`），进入后自动用 zsh + starship 提示符（含 `$nix_shell` 图标），并带上改配置常用工具：
+
+```bash
+cd ~/nixos_dev
+nix develop          # 进入开发环境
+
+# 环境内可直接使用：lix、nh、nixfmt、statix、git、zsh
+```
+
+> 提示符主题与系统登录 shell 相同（`no-empty-icons` preset），仅多一个 Nix shell 图标，方便看出当前在 devShell 里。
+
+---
+
+## 9. 常见问题与排错
+
+### 9.1 开机卡在滚动根目录 / 想回到"出厂状态"
 
 `/` 每次开机都会从 `@root-blank` 回滚。若系统被改坏，无需重装——确保 `/persist` 里没有残留问题配置，重启即可"复位"。也可以手动把某个子卷快照覆盖回 root：
 
@@ -369,22 +386,22 @@ nix run                          # 前台运行，SSH 端口映射 2222 → 22
 sudo btrfs subvolume snapshot /mnt/@root-blank /mnt/root   # 需先卸载/换挂载
 ```
 
-### 8.2 `nixos-install` 报 fileSystems 相关错误
+### 9.2 `nixos-install` 报 fileSystems 相关错误
 
 多半是 3.5 的挂载没做完整（`root`/`nix`/`persist` 三个子卷 + `/mnt/boot`），用 `findmnt` 检查 `/mnt` 下挂载点。
 
-### 8.3 SSH 无法登录
+### 9.3 SSH 无法登录
 
 `network.nix` 设置了 `PasswordAuthentication = false`，且用户没有密码登录通道。请确认：
 
 - 公钥已写入 `~/.ssh/authorized_keys`（注意 impermanence：文件必须放在 `/persist/home/onyx/.ssh/` 对应位置，`~/.ssh` 软链由 `hideMounts` 处理，直接编辑 `~/.ssh/authorized_keys` 即可）
 - 或临时在配置中放开密码认证后 `nh os switch` 再登录
 
-### 8.4 NVIDIA / prime offload
+### 9.4 NVIDIA / prime offload
 
 `modules/hardware/nvidia.nix` 默认关闭 prime offload（`lib.mkDefault false`），如需独显渲染，把 `modules/hardware/nvidia.nix` 中的 `amdgpuBusId` / `nvidiaBusId` 注释取消并按实际 `lspci` 总线号填写，再设 `offload.enable = true`。
 
-### 8.5 换源后 substitution 失败 / 密钥报错
+### 9.5 换源后 substitution 失败 / 密钥报错
 
 镜像源使用与官方缓存相同的签名密钥，但必须显式声明。检查 `nix.settings` 中是否同时包含：
 
@@ -392,12 +409,12 @@ sudo btrfs subvolume snapshot /mnt/@root-blank /mnt/root   # 需先卸载/换挂
 trusted-public-keys = [ "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=" ];
 ```
 
-### 8.6 添加/修改 host
+### 9.6 添加/修改 host
 
 - 新主机：在 `modules/hosts/<名字>/default.nix` 里仿照 `uontabc` 写 `hosts.<名字> = { system, stateVersion, module }`，`lib/nixos.nix` 会自动生成 `nixosConfigurations.<名字>`；同目录下的 `flake.modules.nixos.<名字>.*` 会被自动附加到该主机。
 - 改用户：改 `modules/users.nix` 的 `my.name`，`impermanence.nix` 的用户目录、`nh.nix` 的 flake 路径、`wsl.nix` 的 `defaultUser` 都会跟随。
 
-### 8.7 microvm 启动失败：找不到 /dev/kvm
+### 9.7 microvm 启动失败：找不到 /dev/kvm
 
 `docker-dev` 是 KVM 加速虚拟机，没有 `/dev/kvm` 会启动失败。排查：
 
