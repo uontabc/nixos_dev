@@ -33,6 +33,8 @@
             "Music"
             "Videos"
             "Projects"
+            # The flake repo itself — wiped root subvolume would delete it.
+            "nixos_dev"
             # Writable tree shared into the docker-dev microvm at /workspace.
             "dev"
             ".ssh"
@@ -41,9 +43,7 @@
             ".gnupg"
           ];
 
-          files = [
-            ".zsh_history"
-          ];
+          files = [ ];
         };
       };
     };

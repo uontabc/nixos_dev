@@ -183,6 +183,11 @@
     {
       environment.systemPackages = [ pkgs.niri ];
 
+      # Electron/Chromium apps (QQ, Edge, ...) render natively on Wayland
+      # instead of XWayland. Under XWayland fractional scaling (1.5) their UI
+      # renders at 1x DPI and the fcitx5 candidate window comes out tiny.
+      environment.sessionVariables.NIXOS_OZONE_WL = "1";
+
       systemd.tmpfiles.rules = [
         "d ${home}/.config/niri 0755 ${config.my.name} users -"
         "L+ ${home}/.config/niri/config.kdl - - - - ${niriConfig}"

@@ -16,7 +16,7 @@
   };
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-parts.url = "github:hercules-ci/flake-parts";
     import-tree.url = "github:vic/import-tree";
     impermanence.url = "github:nix-community/impermanence";
@@ -26,6 +26,10 @@
     };
     noctalia = {
       url = "github:noctalia-dev/noctalia";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    helium = {
+      url = "github:J0schu/helium.nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     # NOTE: nixvim deliberately does NOT follow our nixpkgs — they test against
@@ -44,6 +48,11 @@
     dev-templates = {
       url = "github:the-nix-way/dev-templates";
       inputs.nixpkgs.follows = "nixpkgs";
+    };
+    # Tokyo Night GRUB theme (plain repo, not a flake).
+    tokyo-night-grub = {
+      url = "github:mino29/tokyo-night-grub";
+      flake = false;
     };
   };
 }

@@ -1,4 +1,4 @@
-{
+{ inputs, ... }: {
   flake.modules.nixos.boot = {
     boot.loader = {
       efi.canTouchEfiVariables = true;
@@ -9,6 +9,8 @@
         efiSupport = true;
         useOSProber = true;
         configurationLimit = 10;
+        # Tokyo Night GRUB theme (input is a plain repo: flake = false).
+        theme = "${inputs.tokyo-night-grub}/tokyo-night";
       };
     };
 

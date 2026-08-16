@@ -1,4 +1,4 @@
-{ config, ... }: {
+{ inputs, config, ... }: {
   flake.modules.nixos.base = { pkgs, ... }: {
     imports = with config.flake.modules.nixos; [
       users
@@ -15,14 +15,16 @@
 
     hardware.enableRedistributableFirmware = true;
 
+    # qq, microsoft-edge, ... are unfree; allow them globally.
+    nixpkgs.config.allowUnfreePredicate = _: true;
+
     environment.systemPackages = with pkgs; [
       vim
       wget
       curl
       htop
       man-pages
-      microsoft-edge
+      inputs.helium.packages.${pkgs.stdenv.hostPlatform.system}.default
     ];
   };
 }
-

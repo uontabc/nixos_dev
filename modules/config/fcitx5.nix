@@ -49,9 +49,13 @@
         ];
 
         # Select the active theme (classicui). Use fcitx5-configtool to switch
-        # at runtime.
+        # at runtime. Font bumped to 14pt — the default 10pt renders tiny on
+        # the 1.5x scaled display (QQ/Electron in particular).
         fcitx5.settings.addons.classicui.globalSection = {
           Theme = "OriDark";
+          Font = "Sans 12";
+          MenuFont = "Sans 12";
+          TrayFont = "Sans Bold 12";
         };
       };
 

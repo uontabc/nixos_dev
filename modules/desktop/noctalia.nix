@@ -26,7 +26,6 @@
         [shell.launcher]
         show_icons    = true
         sort_by_usage = true
-        pinned        = ["kitty", "microsoft-edge"]
 
         [theme]
         mode    = "dark"
@@ -117,9 +116,12 @@
         format = "{:%H:%M:%S}"
       '';
       # GTK icon theme selection so noctalia's icon resolver searches Papirus.
+      # Font also pinned here so GTK apps match the global fontconfig defaults
+      # (see modules/config/fonts.nix) instead of their per-theme default.
       gtkSettings = pkgs.writeText "gtk-settings.ini" ''
         [Settings]
         gtk-icon-theme-name=Papirus
+        gtk-font-name=FantasqueSansM Nerd Font Mono 12
       '';
       # Plugins for noctalia, shipped through a `path` source (see [plugins] above).
       # Files come from the upstream repos' raw.githubusercontent (reliable CDN)

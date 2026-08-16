@@ -95,6 +95,26 @@
         "type": "github"
       }
     },
+    "helium": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1786883838,
+        "narHash": "sha256-Xdfp8IS/jKCGrTyJy8NmU5arZri3KN0H8W/6D/u6bHM=",
+        "owner": "J0schu",
+        "repo": "helium.nix",
+        "rev": "07dccf1858cea8f8be9fb79269558c18f55be087",
+        "type": "github"
+      },
+      "original": {
+        "owner": "J0schu",
+        "repo": "helium.nix",
+        "type": "github"
+      }
+    },
     "home-manager": {
       "inputs": {
         "nixpkgs": [
@@ -225,16 +245,16 @@
     },
     "nixpkgs_2": {
       "locked": {
-        "lastModified": 1786535285,
-        "narHash": "sha256-rG5HKMAgAhMgydvKGtco6rqTxRq4EDZQCx9USLvVqYw=",
+        "lastModified": 1786599213,
+        "narHash": "sha256-yNJd40f11EzXBjSByCB7IPpeFFAdeoSKKM67dGkfFoU=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "9f78f44a87948854445dae0b6bf82b2e87e4efb5",
+        "rev": "0e251e24a4f24e036a084b6b4b2d2491af4167f4",
         "type": "github"
       },
       "original": {
         "owner": "NixOS",
-        "ref": "nixos-26.05",
+        "ref": "nixos-unstable",
         "repo": "nixpkgs",
         "type": "github"
       }
@@ -283,11 +303,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1786709077,
-        "narHash": "sha256-+FtOwGMIvw2q18HoggONjI/0dgcpv70XwO7UqR1VfoE=",
+        "lastModified": 1786839550,
+        "narHash": "sha256-+QiXyALQqmA2OZ6o7qo0J9FKQ/PinZ3GCxXMXTQ2mXQ=",
         "owner": "noctalia-dev",
         "repo": "noctalia",
-        "rev": "5175780faf9a72e55e0cec072e3b2a747c7406ba",
+        "rev": "03b08008929bfefe70b616b03f36b97890b4120d",
         "type": "github"
       },
       "original": {
@@ -301,13 +321,15 @@
         "dev-templates": "dev-templates",
         "disko": "disko",
         "flake-parts": "flake-parts",
+        "helium": "helium",
         "impermanence": "impermanence",
         "import-tree": "import-tree",
         "microvm": "microvm",
         "nixos-wsl": "nixos-wsl",
         "nixpkgs": "nixpkgs_2",
         "nixvim": "nixvim",
-        "noctalia": "noctalia"
+        "noctalia": "noctalia",
+        "tokyo-night-grub": "tokyo-night-grub"
       }
     },
     "spectrum": {
@@ -338,6 +360,22 @@
       "original": {
         "owner": "nix-systems",
         "repo": "default",
+        "type": "github"
+      }
+    },
+    "tokyo-night-grub": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1682173691,
+        "narHash": "sha256-l+H3cpxFn3MWvarTJvxXzTA+CwX0SwvP+/EnU8tDUEk=",
+        "owner": "mino29",
+        "repo": "tokyo-night-grub",
+        "rev": "e2b2cfd77f0195fffa93b36959f9b970ca7a1307",
+        "type": "github"
+      },
+      "original": {
+        "owner": "mino29",
+        "repo": "tokyo-night-grub",
         "type": "github"
       }
     }
