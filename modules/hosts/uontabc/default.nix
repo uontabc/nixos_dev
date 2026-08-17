@@ -33,10 +33,10 @@
         description = "Impermanence: roll back root btrfs subvolume";
         wantedBy = [ "initrd.target" ];
         before = [ "sysroot.mount" ];
-        # Wait for the btrfs device to appear — by-partlabel symlinks are
-        # created by udev and may not exist yet at initrd startup.
-        after = [ "dev-disk-by\\x2dpartlabel-nixos\\x2dbtrfs.device" ];
-        requires = [ "dev-disk-by\\x2dpartlabel-nixos\\x2dbtrfs.device" ];
+        # Wait for the btrfs device to appear — the disk may not be probed
+        # yet at initrd startup.
+        after = [ "dev-nvme0n1p2.device" ];
+        requires = [ "dev-nvme0n1p2.device" ];
         unitConfig.DefaultDependencies = "no";
         serviceConfig = {
           Type = "oneshot";
@@ -44,7 +44,7 @@
         };
         script = ''
           mkdir -p /btrfs-tl
-          mount -t btrfs -o subvolid=5 /dev/disk/by-partlabel/nixos-btrfs /btrfs-tl
+          mount -t btrfs -o subvolid=5 /dev/nvme0n1p2 /btrfs-tl
 
           if [ -d /btrfs-tl/@root-blank ]; then
             echo "[impermanence] rolling back root subvolume from @root-blank"

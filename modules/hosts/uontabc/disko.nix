@@ -2,11 +2,17 @@
   # Named after the host: the host factory in lib/nixos.nix auto-attaches
   # `flake.modules.nixos.<hostname>` to the matching host via
   # `optional (nixos ? ${name}) nixos.${name}`.
+  #
+  # Partitions are created manually once (see INSTALL.md 3.4), then disko
+  # (destroy = true) wipes/reformats them and creates the btrfs subvolumes on
+  # every install. Devices are plain paths (/dev/nvme0n1p1 etc.) — adjust to
+  # your disk; the btrfs device must also match `hosts/uontabc/default.nix`
+  # (impermanence-rollback initrd service).
   flake.modules.nixos.uontabc.disko.devices.disk = {
     nixos-esp = {
       type = "disk";
-      device = "/dev/disk/by-partlabel/nixos-esp";
-      destroy = false;
+      device = "/dev/nvme0n1p1";
+      destroy = true;
       content = {
         type = "filesystem";
         format = "vfat";
@@ -16,8 +22,8 @@
     };
     nixos-btrfs = {
       type = "disk";
-      device = "/dev/disk/by-partlabel/nixos-btrfs";
-      destroy = false;
+      device = "/dev/nvme0n1p2";
+      destroy = true;
       content = {
         type = "btrfs";
         extraArgs = [ "-L" "nixos" ];

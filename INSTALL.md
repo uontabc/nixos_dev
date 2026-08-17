@@ -7,7 +7,7 @@
 | `uontabc` | 裸机桌面 | AMD CPU + NVIDIA 显卡，niri Wayland 合成器，btrfs + impermanence（不可变根），GRUB 引导 |
 | `wsl` | Windows WSL2 | 纯终端发行版（NixOS-WSL），无桌面，使用 Windows 宿主 GPU 驱动（WSLg） |
 
-- nixpkgs 分支：`nixos-26.05`
+- nixpkgs 分支：`nixos-unstable`（nixvim 例外，使用自己锁定的 `nixos-26.05`）
 - 系统 Nix：**Lix**（来自 nixpkgs）
 - 包管理辅助：**nh**（`nh os switch` / `nh clean`）
 - 开发环境：**dev-templates**（the-nix-way 多语言开发模板，见第 7 节）
@@ -101,12 +101,16 @@ git clone https://github.com/uontabc/nixos_dev.git /home/onyx/nixos_dev
 
 ### 3.4 磁盘分区（只需手动分一次）
 
-本配置的 disko 方案（`modules/hosts/uontabc/disko.nix`）按 **partlabel** 识别分区，且设置了 `destroy = false`——**不会清空整个磁盘**，所以分区和 partlabel 需要你提前手动建好。建议布局：
+本配置的 disko 方案（`modules/hosts/uontabc/disko.nix`）按 **盘符**（`/dev/nvme0n1p1` / `/dev/nvme0n1p2`）识别分区，`destroy = true` 会在安装时清空并重建这两个分区的内容，所以只需提前手动建好分区表即可。建议布局：
 
-| 分区 | partlabel | 文件系统 | 挂载点 | 大小 |
+| 分区 | 盘符（示例） | 文件系统 | 挂载点 | 大小 |
 |------|-----------|----------|--------|------|
-| 1 | `nixos-esp` | vfat | `/boot` | 1GiB（UEFI ESP） |
-| 2 | `nixos-btrfs` | btrfs | `/`（含子卷） | 剩余全部 |
+| 1 | `/dev/nvme0n1p1` | vfat | `/boot` | 1GiB（UEFI ESP） |
+| 2 | `/dev/nvme0n1p2` | btrfs | `/`（含子卷） | 剩余全部 |
+
+> 如果实际盘符不是 `/dev/nvme0n1p1/p2`，需要同步修改两处：
+> `modules/hosts/uontabc/disko.nix`（devices）和 `modules/hosts/uontabc/default.nix`
+> （`impermanence-rollback` initrd 服务里的设备引用）。
 
 以 `/dev/nvme0n1` 为例（**警告：以下命令会清空该盘，请确认盘符！**）：
 
@@ -116,19 +120,19 @@ sudo -i
 # 1. 重新建立 GPT 分区表
 parted /dev/nvme0n1 -- mklabel gpt
 
-# 2. ESP 分区（1GiB），分区名即 partlabel
-parted /dev/nvme0n1 -- mkpart "nixos-esp" fat32 1MiB 1GiB
+# 2. ESP 分区（1GiB），分区名随意（disko 按盘符识别，不依赖分区名）
+parted /dev/nvme0n1 -- mkpart esp fat32 1MiB 1GiB
 parted /dev/nvme0n1 -- set 1 esp on
 
 # 3. btrfs 数据分区，占满剩余空间
-parted /dev/nvme0n1 -- mkpart "nixos-btrfs" 1GiB 100%
+parted /dev/nvme0n1 -- mkpart nixos 1GiB 100%
 ```
 
 验证：
 
 ```bash
-ls /dev/disk/by-partlabel/
-# 应能看到 nixos-esp 和 nixos-btrfs
+lsblk /dev/nvme0n1
+# 应能看到 nvme0n1p1（1GiB）和 nvme0n1p2（剩余空间）
 ```
 
 > 如果是多盘 / 已有其他系统，记得先确认 `esp on` 的分区号是否正确（`parted /dev/nvme0n1 print` 查看）。
@@ -140,9 +144,21 @@ ls /dev/disk/by-partlabel/
 disko 会按配置创建文件系统、btrfs 子卷并挂载到 `/mnt`：
 
 ```bash
+# 注意：必须带 --mode format,mount！disko 默认 mode 是 mount（只挂载），
+# 首次安装时分区是空的，只挂载会报错（没有文件系统可挂载）。
 nix run github:nix-community/disko -- \
-  --flake /home/onyx/nixos_dev#uontabc
+  --flake /home/onyx/nixos_dev#uontabc \
+  --mode format,mount
 ```
+
+> `uontabc` 同时暴露为 `diskoConfigurations.uontabc` 输出，disko CLI 会优先
+> 使用它；若 GitHub 最新版 disko 与 flake.lock 锁定版本不一致导致
+> `disko-compat-error`，改用本 flake 锁定的 disko 生成的脚本：
+> `nix run .#nixosConfigurations.uontabc.config.system.build.formatMount`
+>
+> **重装系统**（`/persist` 之外的数据可丢弃）用完整流程，会先 wipe 掉
+> `/dev/nvme0n1p1` 和 `/dev/nvme0n1p2` 再重建：
+> `nix run github:nix-community/disko -- --flake /home/onyx/nixos_dev#uontabc --mode destroy,format,mount`
 
 跑完后直接跳到 3.6。
 
@@ -150,23 +166,23 @@ nix run github:nix-community/disko -- \
 
 ```bash
 # ESP
-mkfs.fat -F 32 -n BOOT /dev/disk/by-partlabel/nixos-esp
+mkfs.fat -F 32 -n BOOT /dev/nvme0n1p1
 
 # btrfs 顶层 + 子卷
-mkfs.btrfs -L nixos /dev/disk/by-partlabel/nixos-btrfs
+mkfs.btrfs -L nixos /dev/nvme0n1p2
 
-mount /dev/disk/by-partlabel/nixos-btrfs /mnt
+mount /dev/nvme0n1p2 /mnt
 btrfs subvolume create /mnt/root
 btrfs subvolume create /mnt/nix
 btrfs subvolume create /mnt/persist
 umount /mnt
 
 # 挂载子卷（挂载参数与 disko.nix 保持一致）
-mount -o subvol=root,compress=zstd,noatime,ssd /dev/disk/by-partlabel/nixos-btrfs /mnt
+mount -o subvol=root,compress=zstd,noatime,ssd /dev/nvme0n1p2 /mnt
 mkdir -p /mnt/{boot,nix,persist}
-mount /dev/disk/by-partlabel/nixos-esp /mnt/boot
-mount -o subvol=nix,compress=zstd,noatime,ssd  /dev/disk/by-partlabel/nixos-btrfs /mnt/nix
-mount -o subvol=persist,compress=zstd,noatime,ssd /dev/disk/by-partlabel/nixos-btrfs /mnt/persist
+mount /dev/nvme0n1p1 /mnt/boot
+mount -o subvol=nix,compress=zstd,noatime,ssd  /dev/nvme0n1p2 /mnt/nix
+mount -o subvol=persist,compress=zstd,noatime,ssd /dev/nvme0n1p2 /mnt/persist
 ```
 
 > 三个子卷 `root`（/）、`nix`（/nix）、`persist`（/persist）缺一不可；`@root-blank` 模板子卷由系统首次启动时的 initrd 脚本自动创建，**不要**手动建。
@@ -204,7 +220,7 @@ findmnt / /nix /persist
 
 > 想改密码：在任意机器上运行 `mkpasswd -m sha-512` 生成新 hash，替换 `modules/users.nix` 中的 `hashedPassword` 后 `nh os switch`，用新密码登录验证即可。
 
-持久化清单见 `modules/impermanence.nix`：`/var/lib/nixos`、`/var/lib/systemd`、`/var/lib/NetworkManager`、`/var/log`、`/etc/ssh/ssh_host_*_key`、`/etc/machine-id`，以及用户目录下的 `Documents`、`Downloads`、`.ssh`、`.gnupg`、`.local/share`、`dev`、`Projects` 等，另有 `.zsh_history` 文件持久化。
+持久化清单见 `modules/impermanence.nix`：`/var/lib/nixos`、`/var/lib/systemd`、`/var/lib/NetworkManager`、`/var/log`、`/etc/ssh/ssh_host_*_key`、`/etc/machine-id`，以及用户目录下的 `Documents`、`Downloads`、`.ssh`、`.gnupg`、`.local/share`、`.local/state`、`dev`、`Projects`、`nixos_dev` 等。
 
 ---
 
@@ -338,7 +354,7 @@ sudo btrfs subvolume snapshot /mnt/@root-blank /mnt/root   # 需先卸载/换挂
 
 ### 9.2 `nixos-install` 报 fileSystems 相关错误
 
-多半是 3.5 的挂载没做完整（`root`/`nix`/`persist` 三个子卷 + `/mnt/boot`），用 `findmnt` 检查 `/mnt` 下挂载点。
+多半是 3.5 的挂载没做完整（`root`/`nix`/`persist` 三个子卷 + `/mnt/boot`），用 `findmnt` 检查 `/mnt` 下挂载点；或盘符与配置不符（`modules/hosts/uontabc/disko.nix` 与 `modules/hosts/uontabc/default.nix` 里写死的 `/dev/nvme0n1p1`/`/dev/nvme0n1p2`）。
 
 ### 9.3 SSH 无法登录
 

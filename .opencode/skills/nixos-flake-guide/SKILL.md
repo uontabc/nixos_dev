@@ -12,16 +12,21 @@ files reference via `config.flake.modules.nixos.<name>`.
 
 ## Layout
 
-- `flake.nix` — inputs only (nixpkgs `nixos-26.05`, flake-parts, import-tree,
-  disko, impermanence, nixvim, noctalia, nixos-wsl, dev-templates).
-  nixpkgs is pinned to `nixos-26.05`; do NOT point nixvim's nixpkgs at ours
-  (they pin their own — following breaks `vimPlugins`).
+- `flake.nix` — inputs only (nixpkgs `nixos-unstable`, flake-parts,
+  import-tree, disko, impermanence, nixvim, noctalia, nixos-wsl,
+  dev-templates). nixpkgs is pinned to `nixos-unstable`; do NOT point
+  nixvim's nixpkgs at ours (they pin their own `nixos-26.05` — following
+  breaks `vimPlugins`).
 - `modules/base.nix` — imports shared by every host (users, nix, i18n, env,
   nh, git, neovim, opencode, fastfetch, zsh).
 - `modules/lib/nixos.nix` — host factory: auto-generates
   `nixosConfigurations.<name>` from `modules/hosts/<name>/`.
 - `modules/hosts/uontabc/` — bare-metal desktop (AMD + NVIDIA, niri Wayland,
   btrfs + impermanence, GRUB). This is the machine you are on.
+- `modules/hosts/uontabc/disko.nix` — partition layout by **device path**
+  (`/dev/nvme0n1p1` ESP, `/dev/nvme0n1p2` btrfs). The initrd rollback
+  service in `modules/hosts/uontabc/default.nix` hardcodes the same device —
+  change both together.
 - `modules/hosts/wsl/` — headless NixOS-WSL guest.
 - `modules/config/` — per-app config (niri, kitty, neovim, opencode, zsh,
   git, fonts, qt, i18n, nix).
@@ -75,3 +80,14 @@ switch, e.g. `nh os build`.
   hardware/desktop/impermanence modules.
 - `nixvim` keeps its own pinned `nixos-26.05`; its nixpkgs input intentionally
   does NOT follow ours.
+- Root rollback runs in the initrd (`boot.initrd.systemd.services.impermanence-rollback`):
+  it deletes the `root` subvolume and snapshots `@root-blank` over it every
+  boot. `btrfs` is symlinked into the initrd `/bin` via
+  `boot.initrd.systemd.extraBin` — `storePaths` alone does NOT put it on PATH.
+  The btrfs device (`/dev/nvme0n1p2`) is hardcoded there and must match
+  `disko.nix`.
+- `diskoConfigurations.uontabc` is exposed in `modules/disko.nix` so the disko
+  CLI works (`nix run github:nix-community/disko -- --flake .#uontabc --mode
+  format,mount`); when it reports `disko-compat-error`, use
+  `nix run .#nixosConfigurations.uontabc.config.system.build.formatMount`
+  instead.
