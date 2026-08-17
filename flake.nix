@@ -40,10 +40,6 @@
       url = "github:nix-community/NixOS-WSL";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    microvm = {
-      url = "github:microvm-nix/microvm.nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
     # Re-exported as flake templates: `nix flake init -t .#<lang>`.
     dev-templates = {
       url = "github:the-nix-way/dev-templates";

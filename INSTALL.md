@@ -10,7 +10,7 @@
 - nixpkgs 分支：`nixos-26.05`
 - 系统 Nix：**Lix**（来自 nixpkgs）
 - 包管理辅助：**nh**（`nh os switch` / `nh clean`）
-- 开发环境：**microvm**（QEMU/KVM 微虚拟机，内置 `docker-dev` 沙箱）+ **dev-templates**（the-nix-way 多语言开发模板，见第 7 节）
+- 开发环境：**dev-templates**（the-nix-way 多语言开发模板，见第 7 节）
 
 ---
 
@@ -18,9 +18,9 @@
 
 ```
 nixos_dev/
-├── flake.nix              # Flake 入口：输入源定义（nixpkgs、flake-parts、disko、impermanence、nixvim、noctalia、nixos-wsl、microvm、dev-templates）
+├── flake.nix              # Flake 入口：输入源定义（nixpkgs、flake-parts、disko、impermanence、nixvim、noctalia、nixos-wsl、dev-templates）
 ├── flake.lock             # 依赖锁定文件
-├── templates/             # 自带的 flake 模板（microvm-docker；其余语言模板来自 the-nix-way/dev-templates 重导出）
+├── templates/             # 自带的 flake 模板（其余语言模板来自 the-nix-way/dev-templates 重导出）
 └── modules/
     ├── base.nix           # 所有主机共用的基础模块（用户、Nix、i18n、nh、编辑器、shell 等）
     ├── users.nix          # 用户定义（默认用户名 onyx），含 my.name / my.packages 自定义选项
@@ -32,8 +32,7 @@ nixos_dev/
     ├── impermanence.nix    # /persist 持久化目录/文件清单
     ├── disko.nix           # 引入 disko 的 NixOS 模块（分区/文件系统定义）
     ├── wsl.nix             # NixOS-WSL 模块（host: wsl 专用）
-    ├── microvm.nix         # microvm.nix 接入：docker-dev 微虚拟机定义（仅 uontabc 启用，见第 7 节）
-    ├── templates.nix       # flake 模板：重导出 dev-templates + 自带 microvm-docker
+    ├── templates.nix       # flake 模板：重导出 dev-templates
     ├── devshell.nix        # 仓库自带开发环境 `nix develop`（lix/nh/nixfmt/statix + starship，见第 8 节）
     ├── _starship-theme.nix # starship 主题（no-empty-icons preset，host 与 devshell 共用）
     ├── flake-parts.nix     # flake-parts 接入、pkgs 构造（允许 unfree）
@@ -205,7 +204,7 @@ findmnt / /nix /persist
 
 > 想改密码：在任意机器上运行 `mkpasswd -m sha-512` 生成新 hash，替换 `modules/users.nix` 中的 `hashedPassword` 后 `nh os switch`，用新密码登录验证即可。
 
-持久化清单见 `modules/impermanence.nix`：`/var/lib/nixos`、`/var/lib/systemd`、`/var/lib/NetworkManager`、`/var/log`、`/etc/ssh/ssh_host_*_key`、`/etc/machine-id`，以及用户目录下的 `Documents`、`Downloads`、`.ssh`、`.gnupg`、`.local/share`、`dev`（microvm 共享目录）、`Projects` 等，另有 `.zsh_history` 文件持久化。
+持久化清单见 `modules/impermanence.nix`：`/var/lib/nixos`、`/var/lib/systemd`、`/var/lib/NetworkManager`、`/var/log`、`/etc/ssh/ssh_host_*_key`、`/etc/machine-id`，以及用户目录下的 `Documents`、`Downloads`、`.ssh`、`.gnupg`、`.local/share`、`dev`、`Projects` 等，另有 `.zsh_history` 文件持久化。
 
 ---
 
@@ -293,51 +292,9 @@ sudo nixos-rebuild switch --flake /home/onyx/nixos_dev#uontabc --rollback
 
 ---
 
-## 7. 开发环境（MicroVM + Docker + 模板）
+## 7. 开发环境（dev-templates）
 
-### 7.1 docker-dev 微虚拟机
-
-`uontabc` 启用了 [microvm.nix](https://github.com/microvm-nix/microvm.nix) 框架，声明式定义了一台 **docker-dev** 微虚拟机（QEMU + KVM，2.5GB 内存 / 2 vCPU；不用整 2GB 是因为 QEMU 在恰好 2GB guest 内存时会挂起）。相比 `nixos-container`，microvm 是真正的虚拟机（独立内核、独占内存/IO），隔离更强、性能接近裸机。
-
-配置要点（`modules/microvm.nix`）：
-
-| 项目 | 值 | 说明 |
-|------|-----|------|
-| hypervisor | `qemu` | 支持 9p 共享 + SLiRP 用户网络 |
-| shares | `ro-store` | 只读共享主机 `/nix/store`，guest 启动几乎不额外占磁盘 |
-| shares | `dev` | `~/dev` 挂载到 guest 的 `/workspace`（可写） |
-| volumes | `docker-data.img` | 8GB 数据盘（自动创建，ext4），docker 镜像重启不丢 |
-| interfaces | user 网络 | SLiRP，guest 可上网，主机无需任何网卡配置 |
-| forwardPorts | `2222 → 22` | SSH 进入 guest |
-| docker | `virtualisation.docker.enable` | guest 内 docker daemon |
-| autostart | `false` | 不随开机自启，手动启动 |
-
-**使用：**
-
-```bash
-# 启动 / 停止 / 查看状态
-systemctl start microvm@docker-dev.service
-systemctl stop  microvm@docker-dev.service
-systemctl status microvm@docker-dev.service
-
-# 进入 guest：root 自动登录（串口控制台）或 SSH
-ssh root@localhost -p 2222        # 密码 toor
-
-# guest 内使用 docker（开发目录在 /workspace）
-docker run --rm -it -v /workspace:/src alpine sh
-```
-
-**修改 guest 配置：** 只改 `modules/microvm.nix`，`nh os switch` 后声明式 VM 会自动重建并重启（`restartIfChanged`）。
-
-**注意事项：**
-
-- guest 根文件系统只读（依赖 `ro-store` 共享），在 guest 内不能 `nixos-rebuild`，安装包请直接在主机配置里加。
-- VM 状态目录：`/var/lib/microvms/docker-dev/`（含 `docker-data.img`、当前 runner 等）。
-- 需要 KVM：确认主机 BIOS 已开虚拟化且 `/dev/kvm` 存在（见 9.7）。
-
-### 7.2 dev-templates（多语言开发模板）
-
-本仓库重导出了 [the-nix-way/dev-templates](https://github.com/the-nix-way/dev-templates) 的全部模板（rust、go、python、node、zig、c-cpp、shell、nix、empty 等 40+ 个），并自带一个 `microvm-docker` 模板：
+本仓库重导出了 [the-nix-way/dev-templates](https://github.com/the-nix-way/dev-templates) 的全部模板（rust、go、python、node、zig、c-cpp、shell、nix、empty 等 40+ 个）：
 
 ```bash
 # 在已有项目目录里初始化开发环境
@@ -351,13 +308,6 @@ nix develop                       # 已装 nix-direnv 的话：direnv allow
 ```
 
 查看全部可用模板：`nix flake show`（`templates.*` 部分）。
-
-**自带模板 `microvm-docker`：** 独立的 docker 开发 MicroVM，可在任意机器上 `nix run`（无需改主机配置），适合临时开一个隔离沙箱：
-
-```bash
-nix flake init -t .#microvm-docker
-nix run                          # 前台运行，SSH 端口映射 2222 → 22
-```
 
 ---
 
@@ -413,16 +363,3 @@ trusted-public-keys = [ "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGsp
 
 - 新主机：在 `modules/hosts/<名字>/default.nix` 里仿照 `uontabc` 写 `hosts.<名字> = { system, stateVersion, module }`，`lib/nixos.nix` 会自动生成 `nixosConfigurations.<名字>`；同目录下的 `flake.modules.nixos.<名字>.*` 会被自动附加到该主机。
 - 改用户：改 `modules/users.nix` 的 `my.name`，`impermanence.nix` 的用户目录、`nh.nix` 的 flake 路径、`wsl.nix` 的 `defaultUser` 都会跟随。
-
-### 9.7 microvm 启动失败：找不到 /dev/kvm
-
-`docker-dev` 是 KVM 加速虚拟机，没有 `/dev/kvm` 会启动失败。排查：
-
-```bash
-ls -l /dev/kvm            # 不存在则看下一步
-grep -E "vmx|svm" /proc/cpuinfo   # CPU 是否支持虚拟化
-```
-
-- 在 BIOS/UEFI 里开启虚拟化（Intel VT-x / AMD SVM）。
-- 确认宿主机的 `kvm-amd`（AMD）或 `kvm-intel`（Intel）内核模块已加载：`lsmod | grep kvm`。
-- 注意：WSL2 里跑 microvm 需要 Windows 侧开启嵌套虚拟化，`uontabc`（裸机）没有这个问题。

@@ -8,7 +8,6 @@
         network
         hardware
         desktop
-        microvm
         overlays
         impermanence
         disko
@@ -66,6 +65,12 @@
       };
 
       # btrfs-progs must be reachable from the systemd initrd environment.
+      # `boot.initrd.systemd.storePaths` only copies the files into the initrd
+      # but does NOT put `btrfs` on PATH (initrd PATH is fixed to /bin:/sbin).
+      # Symlinking it into /bin via `extraBin` is what makes the bare `btrfs`
+      # call in the rollback script resolve — without this the rollback/seed
+      # silently never ran ("btrfs: command not found").
+      boot.initrd.systemd.extraBin.btrfs = "${pkgs.btrfs-progs}/bin/btrfs";
       boot.initrd.systemd.storePaths = [ "${pkgs.btrfs-progs}/bin" ];
     };
   };

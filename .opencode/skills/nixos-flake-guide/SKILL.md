@@ -13,7 +13,7 @@ files reference via `config.flake.modules.nixos.<name>`.
 ## Layout
 
 - `flake.nix` — inputs only (nixpkgs `nixos-26.05`, flake-parts, import-tree,
-  disko, impermanence, nixvim, noctalia, nixos-wsl, microvm, dev-templates).
+  disko, impermanence, nixvim, noctalia, nixos-wsl, dev-templates).
   nixpkgs is pinned to `nixos-26.05`; do NOT point nixvim's nixpkgs at ours
   (they pin their own — following breaks `vimPlugins`).
 - `modules/base.nix` — imports shared by every host (users, nix, i18n, env,
@@ -75,5 +75,3 @@ switch, e.g. `nh os build`.
   hardware/desktop/impermanence modules.
 - `nixvim` keeps its own pinned `nixos-26.05`; its nixpkgs input intentionally
   does NOT follow ours.
-- microvm `docker-dev` guest cannot `nixos-rebuild` (read-only root); change it
-  by editing `modules/microvm.nix` on the host.
