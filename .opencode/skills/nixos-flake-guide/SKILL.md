@@ -45,6 +45,8 @@ files reference via `config.flake.modules.nixos.<name>`.
 - Root filesystem rolls back every boot from `@root-blank`. Edits outside
   `/persist` do not survive unless declared. Declared files under
   `/etc` are recreated by systemd-tmpfiles on boot.
+- `~/.ssh` and `~/.gnupg` are persisted with mode `0700`; `.zsh_history` is
+  persisted as a user file.
 - Chinese mirrors (USTC/SJTU) are configured globally; don't add more.
 
 ## Adding a module

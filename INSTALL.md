@@ -20,7 +20,6 @@
 nixos_dev/
 ├── flake.nix              # Flake 入口：输入源定义（nixpkgs、flake-parts、disko、impermanence、nixvim、noctalia、nixos-wsl、dev-templates）
 ├── flake.lock             # 依赖锁定文件
-├── templates/             # 自带的 flake 模板（其余语言模板来自 the-nix-way/dev-templates 重导出）
 └── modules/
     ├── base.nix           # 所有主机共用的基础模块（用户、Nix、i18n、nh、编辑器、shell 等）
     ├── users.nix          # 用户定义（默认用户名 onyx），含 my.name / my.packages 自定义选项
@@ -50,7 +49,7 @@ nixos_dev/
 
 - **仓库路径固定为 `~/nixos_dev`**：`nh.nix` 中 `programs.nh.flake` 硬编码了 `/home/<用户>/nixos_dev`，克隆时请保持这个路径，否则 `nh` 会失效。
 - **用户名默认 `onyx`**：如需修改，改 `modules/users.nix` 里的 `my.name`（同时注意 `impermanence.nix`、`zsh.nix`、`niri.nix` 等模块中用 `config.my.name` 动态生成路径，改一处即可全局生效）。
-- **密码为声明式 `hashedPassword`**：密码以 sha-512 hash 形式写在 `modules/users.nix`（当前为 `uontabc` 的 hash）。改密码只需更新该 hash 后 `nh os switch`，无需在系统里跑 `passwd`（`/` 每次开机回滚，非声明式的改动会丢失）。
+- **密码为声明式 `hashedPassword`**：密码以 sha-512 hash 形式写在 `modules/users.nix`（仓库中的当前 hash 是公开的默认值，正式使用前必须更换）。运行 `mkpasswd -m sha-512` 生成新 hash，更新后执行 `nh os switch`，无需在系统里跑 `passwd`（`/` 每次开机回滚，非声明式的改动会丢失）。
 - **国内镜像源**已内置：`mirrors.ustc.edu.cn` 和 `mirror.sjtu.edu.cn` 优先，`cache.nixos.org` 兜底（已配置对应的 trusted public key，无需手动信任）。
 
 ---
@@ -101,7 +100,7 @@ git clone https://github.com/uontabc/nixos_dev.git /home/onyx/nixos_dev
 
 ### 3.4 磁盘分区（只需手动分一次）
 
-本配置的 disko 方案（`modules/hosts/uontabc/disko.nix`）按 **盘符**（`/dev/nvme0n1p1` / `/dev/nvme0n1p2`）识别分区，`destroy = true` 会在安装时清空并重建这两个分区的内容，所以只需提前手动建好分区表即可。建议布局：
+本配置的 disko 方案（`modules/hosts/uontabc/disko.nix`）按 **盘符**（`/dev/nvme0n1p1` / `/dev/nvme0n1p2`）识别分区，`destroy = true` 允许使用 `destroy,format,mount` 流程清空并重建这两个分区；普通的 `format,mount` 流程不会主动 wipe 已有文件系统。安装前只需手动建好分区表。建议布局：
 
 | 分区 | 盘符（示例） | 文件系统 | 挂载点 | 大小 |
 |------|-----------|----------|--------|------|
@@ -126,6 +125,9 @@ parted /dev/nvme0n1 -- set 1 esp on
 
 # 3. btrfs 数据分区，占满剩余空间
 parted /dev/nvme0n1 -- mkpart nixos 1GiB 100%
+
+# 4. 让内核立即重新读取分区表
+partprobe /dev/nvme0n1
 ```
 
 验证：
@@ -156,8 +158,12 @@ nix run github:nix-community/disko -- \
 > `disko-compat-error`，改用本 flake 锁定的 disko 生成的脚本：
 > `nix run .#nixosConfigurations.uontabc.config.system.build.formatMount`
 >
-> **重装系统**（`/persist` 之外的数据可丢弃）用完整流程，会先 wipe 掉
-> `/dev/nvme0n1p1` 和 `/dev/nvme0n1p2` 再重建：
+> 对已有 btrfs 文件系统，`format,mount` 不会删除旧的 `@root-blank` 或旧子卷；
+> 如果要重新初始化整个系统模板，使用下面的完整 destroy 流程。
+>
+> **完全重装系统**（包括 `/persist` 在内的分区数据都会丢失）用完整流程，
+> 会先 wipe 掉 `/dev/nvme0n1p1` 和 `/dev/nvme0n1p2` 再重建。需要保留
+> `/persist` 时，先把它备份到其他磁盘，不要直接使用此流程：
 > `nix run github:nix-community/disko -- --flake /home/onyx/nixos_dev#uontabc --mode destroy,format,mount`
 
 跑完后直接跳到 3.6。
@@ -220,7 +226,7 @@ findmnt / /nix /persist
 
 > 想改密码：在任意机器上运行 `mkpasswd -m sha-512` 生成新 hash，替换 `modules/users.nix` 中的 `hashedPassword` 后 `nh os switch`，用新密码登录验证即可。
 
-持久化清单见 `modules/impermanence.nix`：`/var/lib/nixos`、`/var/lib/systemd`、`/var/lib/NetworkManager`、`/var/log`、`/etc/ssh/ssh_host_*_key`、`/etc/machine-id`，以及用户目录下的 `Documents`、`Downloads`、`.ssh`、`.gnupg`、`.local/share`、`.local/state`、`dev`、`Projects`、`nixos_dev` 等。
+持久化清单见 `modules/impermanence.nix`：`/var/lib/nixos`、`/var/lib/systemd`、`/var/lib/NetworkManager`、`/var/log`、`/etc/ssh/ssh_host_*_key`、`/etc/machine-id`，以及用户目录下的 `Documents`、`Downloads`、`.ssh`、`.gnupg`、`.local/share`、`.local/state`、`.zsh_history`、`dev`、`Projects`、`nixos_dev` 等。`.ssh` 和 `.gnupg` 会按 `0700` 权限创建。
 
 ---
 
@@ -360,7 +366,7 @@ sudo btrfs subvolume snapshot /mnt/@root-blank /mnt/root   # 需先卸载/换挂
 
 `network.nix` 设置了 `PasswordAuthentication = false`，且用户没有密码登录通道。请确认：
 
-- 公钥已写入 `~/.ssh/authorized_keys`（注意 impermanence：文件必须放在 `/persist/home/onyx/.ssh/` 对应位置，`~/.ssh` 软链由 `hideMounts` 处理，直接编辑 `~/.ssh/authorized_keys` 即可）
+- 公钥已写入 `~/.ssh/authorized_keys`（注意 impermanence：文件必须放在 `/persist/home/onyx/.ssh/` 对应位置，`~/.ssh` 由 `hideMounts` bind mount 持久化，直接编辑 `~/.ssh/authorized_keys` 即可）
 - 或临时在配置中放开密码认证后 `nh os switch` 再登录
 
 ### 9.4 NVIDIA / prime offload

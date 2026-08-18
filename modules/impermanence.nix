@@ -37,13 +37,13 @@
             "nixos_dev"
             # Development workspace.
             "dev"
-            ".ssh"
+            { directory = ".ssh"; mode = "0700"; }
             ".local/share"
             ".local/state"
-            ".gnupg"
+            { directory = ".gnupg"; mode = "0700"; }
           ];
 
-          files = [ ];
+          files = [ ".zsh_history" ];
         };
       };
     };
