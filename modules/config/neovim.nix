@@ -111,7 +111,30 @@
                   "filetype"
                 ];
                 lualine_x = [ "diagnostics" ];
-                lualine_y = [ "lsp_status" ];
+                # lualine has no builtin `lsp_status` component (that needs the
+                # separate nvim-lspstatus plugin, which nixvim doesn't ship).
+                # Show the active LSP client for the current buffer instead.
+                lualine_y = [
+                  {
+                    __unkeyed-1.__raw = ''
+                      function()
+                        local buf_ft = vim.bo[0].filetype
+                        local clients = vim.lsp.get_clients({ bufnr = 0 })
+                        if next(clients) == nil then
+                          return ""
+                        end
+                        for _, client in ipairs(clients) do
+                          local filetypes = client.config.filetypes
+                          if filetypes and vim.fn.index(filetypes, buf_ft) ~= -1 then
+                            return client.name
+                          end
+                        end
+                        return ""
+                      end
+                    '';
+                    icon = "";
+                  }
+                ];
                 lualine_z = [ "location" "progress" ];
               };
             };

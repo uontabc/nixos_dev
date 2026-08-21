@@ -1,5 +1,5 @@
-{ inputs, config, ... }: {
-  flake.modules.nixos.base = { pkgs, ... }: {
+{ config, ... }: {
+  flake.modules.nixos.base = { pkgs, lib, ... }: {
     imports = with config.flake.modules.nixos; [
       users
       nix
@@ -15,8 +15,15 @@
 
     hardware.enableRedistributableFirmware = true;
 
-    # qq, microsoft-edge, ... are unfree; allow them globally.
-    nixpkgs.config.allowUnfreePredicate = _: true;
+    # Only qq and helium need unfree; permit exactly those (keep in sync with
+    # modules/flake-parts.nix's allowUnfreePredicate).
+    nixpkgs.config.allowUnfreePredicate = pkg:
+      lib.lists.any
+        (n: lib.getName pkg == n)
+        [
+          "qq"      # Tencent QQ
+          "helium"  # Helium browser (AppImage wrapper defaults to unfree)
+        ];
 
     environment.systemPackages = with pkgs; [
       vim
@@ -24,7 +31,6 @@
       curl
       htop
       man-pages
-      inputs.helium.packages.${pkgs.stdenv.hostPlatform.system}.default
     ];
   };
 }

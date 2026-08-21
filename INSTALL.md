@@ -21,7 +21,7 @@ nixos_dev/
 ├── flake.nix              # Flake 入口：输入源定义（nixpkgs、flake-parts、disko、impermanence、nixvim、noctalia、nixos-wsl、dev-templates）
 ├── flake.lock             # 依赖锁定文件
 └── modules/
-    ├── base.nix           # 所有主机共用的基础模块（用户、Nix、i18n、nh、编辑器、shell 等）
+    ├── base.nix           # 所有主机共用的基础模块（用户、Nix、i18n、nh、编辑器、shell 等；不含桌面/浏览器）
     ├── users.nix          # 用户定义（默认用户名 onyx），含 my.name / my.packages 自定义选项
     ├── nix.nix            # Lix、国内镜像源（USTC/SJTU）、Flake 实验特性
     ├── env.nix             # 全局环境变量（Wayland、XDG）
@@ -33,11 +33,10 @@ nixos_dev/
     ├── wsl.nix             # NixOS-WSL 模块（host: wsl 专用）
     ├── templates.nix       # flake 模板：重导出 dev-templates
     ├── devshell.nix        # 仓库自带开发环境 `nix develop`（lix/nh/nixfmt/statix + starship，见第 8 节）
-    ├── _starship-theme.nix # starship 主题（no-empty-icons preset，host 与 devshell 共用）
-    ├── flake-parts.nix     # flake-parts 接入、pkgs 构造（允许 unfree）
+    ├── flake-parts.nix     # flake-parts 接入、pkgs 构造（仅放行 qq/helium 等 unfree 包）
     ├── systems.nix         # 支持的平台（x86_64-linux）
     ├── lib/nixos.nix       # host 工厂：由 modules/hosts/* 自动生成 nixosConfigurations
-    ├── config/             # 各软件配置：niri、kitty、neovim、opencode、zsh、fastfetch、git、fonts、qt、i18n、nix
+    ├── config/             # 各软件配置：niri、kitty、neovim、opencode、zsh、fastfetch、git、fonts、qt、i18n、nix、_starship-theme
     ├── desktop/            # 桌面相关：niri、greetd、pipewire、xdg-portal、noctalia、xwayland、字体
     ├── hardware/           # 硬件相关：AMD CPU、NVIDIA、显卡、蓝牙、输入
     └── hosts/

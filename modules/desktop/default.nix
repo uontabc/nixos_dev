@@ -1,4 +1,4 @@
-{ config, ... }: {
+{ config, inputs, ... }: {
   flake.modules.nixos.desktop = { pkgs, ... }: {
     imports = with config.flake.modules.nixos; [
       audio
@@ -23,6 +23,7 @@
       polkit_gnome
       qq
       inetutils
+      inputs.helium.packages.${pkgs.stdenv.hostPlatform.system}.default
     ];
   };
 }
