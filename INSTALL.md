@@ -99,7 +99,7 @@ git clone https://github.com/uontabc/nixos_dev.git /home/onyx/nixos_dev
 
 ### 3.4 磁盘分区（本机已分好，只需确认盘符）
 
-本配置的 disko 方案（`modules/hosts/uontabc/disko.nix`）按 **盘符** 识别分区，`destroy = true` 允许使用 `destroy,format,mount` 流程清空并重建这两个分区；普通的 `format,mount` 流程不会主动 wipe 已有文件系统。本机当前布局（`lsblk` 确认，勿照抄旧教程的 parted 命令）：
+本配置的 disko 方案（`modules/hosts/uontabc/_disko-devices.nix`）按 **盘符** 识别分区，`destroy = true` 允许使用 `destroy,format,mount` 流程清空并重建这两个分区；普通的 `format,mount` 流程不会主动 wipe 已有文件系统。本机当前布局（`lsblk` 确认，勿照抄旧教程的 parted 命令）：
 
 | 分区 | 盘符 | 文件系统 | 挂载点 | 大小 | 说明 |
 |------|-----------|----------|--------|------|------|
@@ -108,7 +108,7 @@ git clone https://github.com/uontabc/nixos_dev.git /home/onyx/nixos_dev
 | 2-5 | — | — | — | — | Windows / Fedora 分区，保留不动 |
 
 > 如果实际盘符不是 `/dev/nvme0n1p1/p6`，需要同步修改两处：
-> `modules/hosts/uontabc/disko.nix`（devices）和 `modules/hosts/uontabc/default.nix`
+> `modules/hosts/uontabc/_disko-devices.nix`（devices）和 `modules/hosts/uontabc/default.nix`
 > （`impermanence-rollback` initrd 服务里的设备引用）。
 
 ```bash
@@ -180,7 +180,7 @@ btrfs subvolume create /mnt/nix
 btrfs subvolume create /mnt/persist
 umount /mnt
 
-# 挂载子卷（挂载参数与 disko.nix 保持一致）
+# 挂载子卷（挂载参数与 _disko-devices.nix 保持一致）
 mount -o subvol=root,compress=zstd,noatime,ssd /dev/nvme0n1p6 /mnt
 mkdir -p /mnt/{boot,nix,persist}
 mount /dev/nvme0n1p1 /mnt/boot
@@ -357,7 +357,7 @@ sudo btrfs subvolume snapshot /mnt/@root-blank /mnt/root   # 需先卸载/换挂
 
 ### 9.2 `nixos-install` 报 fileSystems 相关错误
 
-多半是 3.5 的挂载没做完整（`root`/`nix`/`persist` 三个子卷 + `/mnt/boot`），用 `findmnt` 检查 `/mnt` 下挂载点；或盘符与配置不符（`modules/hosts/uontabc/disko.nix` 与 `modules/hosts/uontabc/default.nix` 里写死的 `/dev/nvme0n1p1`/`/dev/nvme0n1p6`）。
+多半是 3.5 的挂载没做完整（`root`/`nix`/`persist` 三个子卷 + `/mnt/boot`），用 `findmnt` 检查 `/mnt` 下挂载点；或盘符与配置不符（`modules/hosts/uontabc/_disko-devices.nix` 与 `modules/hosts/uontabc/default.nix` 里写死的 `/dev/nvme0n1p1`/`/dev/nvme0n1p6`）。
 
 ### 9.3 SSH 无法登录
 

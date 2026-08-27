@@ -3,47 +3,9 @@
   # `flake.modules.nixos.<hostname>` to the matching host via
   # `optional (nixos ? ${name}) nixos.${name}`.
   #
-  # Partitions are created manually once (see INSTALL.md 3.4). The regular
-  # format,mount flow preserves existing filesystem contents; the explicit
-  # destroy,format,mount flow wipes/reformats these two partitions. Devices
-  # are plain paths (/dev/nvme0n1p1 etc.) — adjust to your disk; the btrfs
-  # device must also match `hosts/uontabc/default.nix` (rollback service).
-  # This machine: p1 = 200M vfat ESP, p6 = 601G btrfs; p2-p5 (Windows /
-  # Fedora /boot) are left untouched.
-  flake.modules.nixos.uontabc.disko.devices.disk = {
-    nixos-esp = {
-      type = "disk";
-      device = "/dev/nvme0n1p1";
-      destroy = true;
-      content = {
-        type = "filesystem";
-        format = "vfat";
-        mountpoint = "/boot";
-        mountOptions = [ "umask=0077" "defaults" ];
-      };
-    };
-    nixos-btrfs = {
-      type = "disk";
-      device = "/dev/nvme0n1p6";
-      destroy = true;
-      content = {
-        type = "btrfs";
-        extraArgs = [ "-L" "nixos" ];
-        subvolumes = {
-          "root" = {
-            mountpoint = "/";
-            mountOptions = [ "compress=zstd" "noatime" "ssd" ];
-          };
-          "nix" = {
-            mountpoint = "/nix";
-            mountOptions = [ "compress=zstd" "noatime" "ssd" ];
-          };
-          "persist" = {
-            mountpoint = "/persist";
-            mountOptions = [ "compress=zstd" "noatime" "ssd" ];
-          };
-        };
-      };
-    };
-  };
+  # The actual partition layout lives in ./_disko-devices.nix (single source of
+  # truth, shared with the diskoConfigurations.uontabc flake output). The file
+  # is underscore-prefixed so import-tree does NOT import it as a flake-parts
+  # module (`disko.*` is not a flake-parts option).
+  flake.modules.nixos.uontabc = ./_disko-devices.nix;
 }

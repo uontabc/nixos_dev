@@ -12,9 +12,11 @@
   # Expose the uontabc disko layout as `diskoConfigurations.uontabc` so the
   # disko CLI / disko-install work directly:
   #   nix run github:nix-community/disko -- --flake .#uontabc --mode format,mount
-  # (the devices definition lives in modules/hosts/uontabc/disko.nix and is
-  # reused both by the NixOS module and this flake output).
+  # (the devices definition lives in modules/hosts/uontabc/_disko-devices.nix
+  # and is reused both by the NixOS module and this flake output. Note:
+  # `config.flake.modules.nixos.uontabc` cannot be used here — flake-parts
+  # wraps those modules as functions, so attribute access fails.)
   flake.diskoConfigurations.uontabc = {
-    disko.devices = config.flake.modules.nixos.uontabc.disko.devices;
+    disko.devices = (import ./hosts/uontabc/_disko-devices.nix).disko.devices;
   };
 }

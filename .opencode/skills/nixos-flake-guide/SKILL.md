@@ -25,8 +25,11 @@ files reference via `config.flake.modules.nixos.<name>`.
   `nixosConfigurations.<name>` from `modules/hosts/<name>/`.
 - `modules/hosts/uontabc/` — bare-metal desktop (AMD + NVIDIA, niri Wayland,
   btrfs + impermanence, GRUB). This is the machine you are on.
-- `modules/hosts/uontabc/disko.nix` — partition layout by **device path**
-  (`/dev/nvme0n1p1` ESP, `/dev/nvme0n1p6` btrfs). The initrd rollback
+- `modules/hosts/uontabc/_disko-devices.nix` — partition layout by **device path**
+  (`/dev/nvme0n1p1` ESP, `/dev/nvme0n1p6` btrfs), shared by the NixOS host
+  (`modules/hosts/uontabc/disko.nix` points `flake.modules.nixos.uontabc` at it)
+  and the `diskoConfigurations.uontabc` output. It is underscore-prefixed so
+  import-tree does not import it as a flake-parts module. The initrd rollback
   service in `modules/hosts/uontabc/default.nix` hardcodes the same device —
   change both together.
 - `modules/hosts/wsl/` — headless NixOS-WSL guest.
