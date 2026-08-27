@@ -26,7 +26,7 @@ files reference via `config.flake.modules.nixos.<name>`.
 - `modules/hosts/uontabc/` — bare-metal desktop (AMD + NVIDIA, niri Wayland,
   btrfs + impermanence, GRUB). This is the machine you are on.
 - `modules/hosts/uontabc/disko.nix` — partition layout by **device path**
-  (`/dev/nvme0n1p1` ESP, `/dev/nvme0n1p2` btrfs). The initrd rollback
+  (`/dev/nvme0n1p1` ESP, `/dev/nvme0n1p6` btrfs). The initrd rollback
   service in `modules/hosts/uontabc/default.nix` hardcodes the same device —
   change both together.
 - `modules/hosts/wsl/` — headless NixOS-WSL guest.
@@ -88,7 +88,7 @@ switch, e.g. `nh os build`.
   it deletes the `root` subvolume and snapshots `@root-blank` over it every
   boot. `btrfs` is symlinked into the initrd `/bin` via
   `boot.initrd.systemd.extraBin` — `storePaths` alone does NOT put it on PATH.
-  The btrfs device (`/dev/nvme0n1p2`) is hardcoded there and must match
+  The btrfs device (`/dev/nvme0n1p6`) is hardcoded there and must match
   `disko.nix`.
 - `diskoConfigurations.uontabc` is exposed in `modules/disko.nix` so the disko
   CLI works (`nix run github:nix-community/disko -- --flake .#uontabc --mode

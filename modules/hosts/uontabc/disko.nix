@@ -8,6 +8,8 @@
   # destroy,format,mount flow wipes/reformats these two partitions. Devices
   # are plain paths (/dev/nvme0n1p1 etc.) — adjust to your disk; the btrfs
   # device must also match `hosts/uontabc/default.nix` (rollback service).
+  # This machine: p1 = 200M vfat ESP, p6 = 601G btrfs; p2-p5 (Windows /
+  # Fedora /boot) are left untouched.
   flake.modules.nixos.uontabc.disko.devices.disk = {
     nixos-esp = {
       type = "disk";
@@ -22,7 +24,7 @@
     };
     nixos-btrfs = {
       type = "disk";
-      device = "/dev/nvme0n1p2";
+      device = "/dev/nvme0n1p6";
       destroy = true;
       content = {
         type = "btrfs";

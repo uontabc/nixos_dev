@@ -35,8 +35,8 @@
         before = [ "sysroot.mount" ];
         # Wait for the btrfs device to appear — the disk may not be probed
         # yet at initrd startup.
-        after = [ "dev-nvme0n1p2.device" ];
-        requires = [ "dev-nvme0n1p2.device" ];
+        after = [ "dev-nvme0n1p6.device" ];
+        requires = [ "dev-nvme0n1p6.device" ];
         unitConfig.DefaultDependencies = "no";
         serviceConfig = {
           Type = "oneshot";
@@ -44,7 +44,7 @@
         };
         script = ''
           mkdir -p /btrfs-tl
-          mount -t btrfs -o subvolid=5 /dev/nvme0n1p2 /btrfs-tl
+          mount -t btrfs -o subvolid=5 /dev/nvme0n1p6 /btrfs-tl
 
           if [ -d /btrfs-tl/@root-blank ]; then
             echo "[impermanence] rolling back root subvolume from @root-blank"

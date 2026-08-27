@@ -97,46 +97,44 @@ git clone https://github.com/uontabc/nixos_dev.git /home/onyx/nixos_dev
 
 > 用 https 克隆即可；SSH 克隆需要先把你的部署公钥加到 GitHub。仓库路径必须是 `/home/onyx/nixos_dev`（见「关键约定」）。
 
-### 3.4 磁盘分区（只需手动分一次）
+### 3.4 磁盘分区（本机已分好，只需确认盘符）
 
-本配置的 disko 方案（`modules/hosts/uontabc/disko.nix`）按 **盘符**（`/dev/nvme0n1p1` / `/dev/nvme0n1p2`）识别分区，`destroy = true` 允许使用 `destroy,format,mount` 流程清空并重建这两个分区；普通的 `format,mount` 流程不会主动 wipe 已有文件系统。安装前只需手动建好分区表。建议布局：
+本配置的 disko 方案（`modules/hosts/uontabc/disko.nix`）按 **盘符** 识别分区，`destroy = true` 允许使用 `destroy,format,mount` 流程清空并重建这两个分区；普通的 `format,mount` 流程不会主动 wipe 已有文件系统。本机当前布局（`lsblk` 确认，勿照抄旧教程的 parted 命令）：
 
-| 分区 | 盘符（示例） | 文件系统 | 挂载点 | 大小 |
-|------|-----------|----------|--------|------|
-| 1 | `/dev/nvme0n1p1` | vfat | `/boot` | 1GiB（UEFI ESP） |
-| 2 | `/dev/nvme0n1p2` | btrfs | `/`（含子卷） | 剩余全部 |
+| 分区 | 盘符 | 文件系统 | 挂载点 | 大小 | 说明 |
+|------|-----------|----------|--------|------|------|
+| 1 | `/dev/nvme0n1p1` | vfat | `/boot` | 200M | UEFI ESP（disko 会 wipe 重建） |
+| 6 | `/dev/nvme0n1p6` | btrfs | `/`（含子卷） | ~601G | disko 会 wipe 重建 |
+| 2-5 | — | — | — | — | Windows / Fedora 分区，保留不动 |
 
-> 如果实际盘符不是 `/dev/nvme0n1p1/p2`，需要同步修改两处：
+> 如果实际盘符不是 `/dev/nvme0n1p1/p6`，需要同步修改两处：
 > `modules/hosts/uontabc/disko.nix`（devices）和 `modules/hosts/uontabc/default.nix`
 > （`impermanence-rollback` initrd 服务里的设备引用）。
 
-以 `/dev/nvme0n1` 为例（**警告：以下命令会清空该盘，请确认盘符！**）：
-
 ```bash
 sudo -i
-
-# 1. 重新建立 GPT 分区表
-parted /dev/nvme0n1 -- mklabel gpt
-
-# 2. ESP 分区（1GiB），分区名随意（disko 按盘符识别，不依赖分区名）
-parted /dev/nvme0n1 -- mkpart esp fat32 1MiB 1GiB
-parted /dev/nvme0n1 -- set 1 esp on
-
-# 3. btrfs 数据分区，占满剩余空间
-parted /dev/nvme0n1 -- mkpart nixos 1GiB 100%
-
-# 4. 让内核立即重新读取分区表
-partprobe /dev/nvme0n1
-```
-
-验证：
-
-```bash
 lsblk /dev/nvme0n1
-# 应能看到 nvme0n1p1（1GiB）和 nvme0n1p2（剩余空间）
+# 确认 nvme0n1p1（ESP，200M）和 nvme0n1p6（btrfs，剩余空间）存在，
+# 且 `esp on` 标记在正确分区上（parted /dev/nvme0n1 print 查看）。
 ```
 
-> 如果是多盘 / 已有其他系统，记得先确认 `esp on` 的分区号是否正确（`parted /dev/nvme0n1 print` 查看）。
+> 只有在换盘/重新分区时才需要手动 `parted` 建分区表（mklabel gpt → mkpart esp → mkpart nixos 占满剩余），本机不需要。
+
+> **双系统（Windows 保留）注意**：Windows 的引导文件（`\EFI\Microsoft`）就放在共享的 ESP `/dev/nvme0n1p1` 里，
+> 而 disko 的 `format`/`destroy` 流程会重新 mkfs 该分区，**先备份 ESP 再跑 disko，装完后恢复**：
+>
+> ```bash
+> # 跑 disko 之前（Fedora 下）：
+> sudo mkdir -p /mnt/esp-backup && sudo mount /dev/nvme0n1p1 /mnt/esp-backup
+> sudo cp -a /mnt/esp-backup/EFI /tmp/efi-backup/
+> sudo umount /mnt/esp-backup
+>
+> # disko format,mount 之后（NixOS 安装环境里），把 Windows 引导文件拷回 ESP：
+> cp -a /tmp/efi-backup/EFI/Microsoft /mnt/boot/EFI/
+> ```
+>
+> 启动菜单由 GRUB（`useOSProber` 已启用）自动加入 Windows；若后续 Windows 进不去，
+> 用 Windows 安装盘 `bcdboot C:\Windows /s S:` 重建引导即可。
 
 ### 3.5 创建文件系统（两种方式任选）
 
@@ -161,7 +159,7 @@ nix run github:nix-community/disko -- \
 > 如果要重新初始化整个系统模板，使用下面的完整 destroy 流程。
 >
 > **完全重装系统**（包括 `/persist` 在内的分区数据都会丢失）用完整流程，
-> 会先 wipe 掉 `/dev/nvme0n1p1` 和 `/dev/nvme0n1p2` 再重建。需要保留
+> 会先 wipe 掉 `/dev/nvme0n1p1` 和 `/dev/nvme0n1p6` 再重建。需要保留
 > `/persist` 时，先把它备份到其他磁盘，不要直接使用此流程：
 > `nix run github:nix-community/disko -- --flake /home/onyx/nixos_dev#uontabc --mode destroy,format,mount`
 
@@ -174,20 +172,20 @@ nix run github:nix-community/disko -- \
 mkfs.fat -F 32 -n BOOT /dev/nvme0n1p1
 
 # btrfs 顶层 + 子卷
-mkfs.btrfs -L nixos /dev/nvme0n1p2
+mkfs.btrfs -L nixos /dev/nvme0n1p6
 
-mount /dev/nvme0n1p2 /mnt
+mount /dev/nvme0n1p6 /mnt
 btrfs subvolume create /mnt/root
 btrfs subvolume create /mnt/nix
 btrfs subvolume create /mnt/persist
 umount /mnt
 
 # 挂载子卷（挂载参数与 disko.nix 保持一致）
-mount -o subvol=root,compress=zstd,noatime,ssd /dev/nvme0n1p2 /mnt
+mount -o subvol=root,compress=zstd,noatime,ssd /dev/nvme0n1p6 /mnt
 mkdir -p /mnt/{boot,nix,persist}
 mount /dev/nvme0n1p1 /mnt/boot
-mount -o subvol=nix,compress=zstd,noatime,ssd  /dev/nvme0n1p2 /mnt/nix
-mount -o subvol=persist,compress=zstd,noatime,ssd /dev/nvme0n1p2 /mnt/persist
+mount -o subvol=nix,compress=zstd,noatime,ssd  /dev/nvme0n1p6 /mnt/nix
+mount -o subvol=persist,compress=zstd,noatime,ssd /dev/nvme0n1p6 /mnt/persist
 ```
 
 > 三个子卷 `root`（/）、`nix`（/nix）、`persist`（/persist）缺一不可；`@root-blank` 模板子卷由系统首次启动时的 initrd 脚本自动创建，**不要**手动建。
@@ -359,7 +357,7 @@ sudo btrfs subvolume snapshot /mnt/@root-blank /mnt/root   # 需先卸载/换挂
 
 ### 9.2 `nixos-install` 报 fileSystems 相关错误
 
-多半是 3.5 的挂载没做完整（`root`/`nix`/`persist` 三个子卷 + `/mnt/boot`），用 `findmnt` 检查 `/mnt` 下挂载点；或盘符与配置不符（`modules/hosts/uontabc/disko.nix` 与 `modules/hosts/uontabc/default.nix` 里写死的 `/dev/nvme0n1p1`/`/dev/nvme0n1p2`）。
+多半是 3.5 的挂载没做完整（`root`/`nix`/`persist` 三个子卷 + `/mnt/boot`），用 `findmnt` 检查 `/mnt` 下挂载点；或盘符与配置不符（`modules/hosts/uontabc/disko.nix` 与 `modules/hosts/uontabc/default.nix` 里写死的 `/dev/nvme0n1p1`/`/dev/nvme0n1p6`）。
 
 ### 9.3 SSH 无法登录
 
