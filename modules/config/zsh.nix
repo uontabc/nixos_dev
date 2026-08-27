@@ -43,7 +43,6 @@
         alias gc='git commit'
         alias gp='git push'
         alias gl='git log --oneline --graph'
-        alias fastfetch='fastfetch-centered'
       '';
     in
     {

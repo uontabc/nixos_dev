@@ -36,7 +36,7 @@ nixos_dev/
     ├── flake-parts.nix     # flake-parts 接入、pkgs 构造（仅放行 qq/helium 等 unfree 包）
     ├── systems.nix         # 支持的平台（x86_64-linux）
     ├── lib/nixos.nix       # host 工厂：由 modules/hosts/* 自动生成 nixosConfigurations
-    ├── config/             # 各软件配置：niri、kitty、neovim、opencode、zsh、fastfetch、git、fonts、qt、i18n、nix、_starship-theme
+    ├── config/             # 各软件配置：niri、kitty、neovim、opencode、zsh、git、fonts、qt、i18n、nix、_starship-theme
     ├── desktop/            # 桌面相关：niri、greetd、pipewire、xdg-portal、noctalia、xwayland、字体
     ├── hardware/           # 硬件相关：AMD CPU、NVIDIA、显卡、蓝牙、输入
     └── hosts/

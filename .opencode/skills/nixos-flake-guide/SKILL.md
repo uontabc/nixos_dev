@@ -18,7 +18,7 @@ files reference via `config.flake.modules.nixos.<name>`.
   nixvim's nixpkgs at ours (they pin their own `nixos-26.05` — following
   breaks `vimPlugins`).
 - `modules/base.nix` — imports shared by every host (users, nix, i18n, env,
-  nh, git, neovim, opencode, fastfetch, zsh). No desktop/browser packages —
+  nh, git, neovim, opencode, zsh). No desktop/browser packages —
   helium lives in `modules/desktop/default.nix` so the headless WSL host
   doesn't pull it.
 - `modules/lib/nixos.nix` — host factory: auto-generates

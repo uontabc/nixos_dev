@@ -9,7 +9,6 @@
       git
       neovim
       opencode
-      fastfetch
       zsh
     ];
 
