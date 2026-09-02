@@ -16,10 +16,14 @@ result-*
 .DS_Store
 Thumbs.db
 
-# Sensitive files (opencode auth etc. are plaintext in the home dir, not repo)
+# Sensitive files (pi auth etc. are plaintext in the home dir, not repo)
 *.key
 *.pem
 secrets.nix
 
 # Local history
 .history/
+
+# pi coding agent runtime data (settings.json/skills under .pi are tracked)
+.pi/npm/
+.pi/sessions/
