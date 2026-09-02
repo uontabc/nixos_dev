@@ -5,7 +5,7 @@
         noto-fonts
         noto-fonts-color-emoji
         # Nerd Font patched Fantasque Sans Mono — required for the icons used
-        # by nvim web-devicons/lualine/nvim-tree and kitty.
+        # by Neovim (lualine/devicons/nvim-tree/which-key) and kitty.
         nerd-fonts.fantasque-sans-mono
         # LXGW WenKai — the CJK (Chinese) UI/sans font.
         lxgw-wenkai

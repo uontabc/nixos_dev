@@ -16,10 +16,8 @@ pure NixOS modules.
 ## Layout
 
 - `flake.nix` — inputs only (nixpkgs `nixos-unstable`, flake-parts,
-  import-tree, disko, impermanence, nixvim, noctalia, nixos-wsl,
-  dev-templates). nixpkgs is pinned to `nixos-unstable`; do NOT point
-  nixvim's nixpkgs at ours (they pin their own `nixos-26.05` — following
-  breaks `vimPlugins`).
+  import-tree, disko, impermanence, noctalia, nixos-wsl, dev-templates).
+  nixpkgs is pinned to `nixos-unstable`.
 - `modules/base.nix` — imports shared by every host profile (users, nix,
   i18n, env, nh, git, neovim, pi, zsh). No desktop/browser packages —
   helium lives in `modules/desktop/default.nix` so the headless WSL host
@@ -31,13 +29,15 @@ pure NixOS modules.
   fonts, i18n, env, printing.
 - `modules/desktop/` — GUI: `default.nix` (profile), niri, noctalia, kitty,
   qt, fcitx5, display (greetd), portal, xwayland, audio, thunar.
-- `modules/programs/` — per-app config: neovim (nixvim), zsh (+ starship
-  theme in `starship-theme.nix` at the repo root), git, pi, nh.
+- `modules/programs/` — per-app config: neovim (pure NixOS via
+  `programs.neovim` + `vimPlugins`, init.lua in
+  `modules/programs/neovim/init.lua` read via `builtins.readFile`), zsh
+  (+ starship theme in `modules/_starship-theme.nix`), git, pi, nh.
 - `modules/hardware/` — CPU/GPU specifics: `cpu-amd.nix`, `nvidia.nix`,
   `default.nix` (bundles both + graphics/bluetooth/input/zram).
 - `modules/hosts/common.nix` — host factory (codeberg style):
   `hostProfiles` (desktop / wsl module lists) + `mkHostConfiguration`
-  (injects nixvim, sets hostname/platform/stateVersion).
+  (sets hostname/platform/stateVersion).
 - `modules/hosts/uontabc/configuration.nix` — the bare-metal desktop
   (AMD + NVIDIA, niri Wayland, btrfs + impermanence, GRUB). This is the
   machine you are on. Passes the profile + machine-specific extras
@@ -102,8 +102,6 @@ switch, e.g. `nh os build`.
 
 - WSL host pulls the `wsl` profile (base + wsl modules, `modules/system/wsl.nix`);
   it excludes boot/network/hardware/desktop/impermanence modules.
-- `nixvim` keeps its own pinned `nixos-26.05`; its nixpkgs input intentionally
-  does NOT follow ours.
 - Root rollback runs in the initrd (`boot.initrd.systemd.services.impermanence-rollback`,
   defined in `modules/hosts/uontabc/configuration.nix`): it deletes the `root`
   subvolume and snapshots `@root-blank` over it every boot. `btrfs` is

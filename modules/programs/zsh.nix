@@ -4,7 +4,7 @@
     let
       home = "/home/${config.my.name}";
 
-      starshipConfig = (import ../../starship-theme.nix { inherit pkgs; }).host;
+      starshipConfig = (import ../_starship-theme.nix { inherit pkgs; }).host;
 
       zshrc = pkgs.writeText "zshrc" ''
         # History

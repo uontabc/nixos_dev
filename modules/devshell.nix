@@ -2,7 +2,7 @@
   perSystem =
     { pkgs, inputs', ... }:
     let
-      starshipConfig = (import ../starship-theme.nix { inherit pkgs; }).devshell;
+      starshipConfig = (import ./_starship-theme.nix { inherit pkgs; }).devshell;
     in
     {
       devShells.default = pkgs.mkShell {

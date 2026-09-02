@@ -32,10 +32,6 @@
       url = "github:J0schu/helium.nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    # NOTE: nixvim deliberately does NOT follow our nixpkgs — they test against
-    # their own pinned nixos-26.05 revision. Following can cause
-    # `vimPlugins.<name> attribute not found` errors.
-    nixvim.url = "github:nix-community/nixvim/nixos-26.05";
     nixos-wsl = {
       url = "github:nix-community/NixOS-WSL";
       inputs.nixpkgs.follows = "nixpkgs";

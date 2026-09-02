@@ -25,7 +25,6 @@
       || lib.hasPrefix "nvidia" (lib.getName pkg); # NVIDIA driver/settings/persistenced
 
     environment.systemPackages = with pkgs; [
-      vim
       wget
       curl
       htop
