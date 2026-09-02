@@ -17,6 +17,6 @@
   # `config.flake.modules.nixos.uontabc` cannot be used here — flake-parts
   # wraps those modules as functions, so attribute access fails.)
   flake.diskoConfigurations.uontabc = {
-    disko.devices = (import ./hosts/uontabc/_disko-devices.nix).disko.devices;
+    disko.devices = (import ../hosts/uontabc/_disko-devices.nix).disko.devices;
   };
 }

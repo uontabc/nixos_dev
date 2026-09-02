@@ -12,6 +12,7 @@
       fcitx5
       fonts
       printing
+      thunar
     ];
 
     my.packages = with pkgs; [

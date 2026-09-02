@@ -21,35 +21,29 @@ nixos_dev/
 ├── flake.nix              # Flake 入口：输入源定义（nixpkgs、flake-parts、disko、impermanence、nixvim、noctalia、nixos-wsl、dev-templates）
 ├── flake.lock             # 依赖锁定文件
 └── modules/
-    ├── base.nix           # 所有主机共用的基础模块（用户、Nix、i18n、nh、编辑器、shell 等；不含桌面/浏览器）
-    ├── users.nix          # 用户定义（默认用户名 onyx），含 my.name / my.packages 自定义选项
-    ├── nix.nix            # Lix、国内镜像源（USTC/SJTU）、Flake 实验特性
-    ├── env.nix             # 全局环境变量（Wayland、XDG）
-    ├── nh.nix              # nh 配置：flake 路径硬编码为 ~/nixos_dev，每周自动清理
-    ├── boot.nix            # GRUB + EFI + os-prober，btrfs/ntfs 支持，/tmp 用 tmpfs
-    ├── network.nix         # NetworkManager、防火墙、SSH（仅密钥登录）
-    ├── impermanence.nix    # /persist 持久化目录/文件清单
-    ├── disko.nix           # 引入 disko 的 NixOS 模块（分区/文件系统定义）
-    ├── printing.nix        # CUPS 打印 + Avahi 发现（桌面主机启用，合并自 codeberg nix-config）
-    ├── wsl.nix             # NixOS-WSL 模块（host: wsl 专用）
-    ├── templates.nix       # flake 模板：重导出 dev-templates
-    ├── devshell.nix        # 仓库自带开发环境 `nix develop`（lix/nh/nixfmt/statix + starship，见第 8 节）
-    ├── flake-parts.nix     # flake-parts 接入、pkgs 构造（仅放行 qq/helium 等 unfree 包）
-    ├── systems.nix         # 支持的平台（x86_64-linux）
-    ├── lib/nixos.nix       # host 工厂：由 modules/hosts/* 自动生成 nixosConfigurations
-    ├── config/             # 各软件配置：niri、kitty、neovim、pi、zsh、git、fonts、qt、i18n、nix、_starship-theme
-    ├── desktop/            # 桌面相关：niri、greetd、pipewire、xdg-portal、noctalia、xwayland、字体、打印
-    ├── hardware/           # 硬件相关：AMD CPU、NVIDIA、显卡、蓝牙、输入
+    ├── base.nix           # 所有主机 profile 共用的基础模块（用户、Nix、i18n、nh、编辑器、shell 等）
+    ├── flake-parts.nix    # flake-parts 接入、pkgs 构造（仅放行 qq/helium 等 unfree 包）
+    ├── devshell.nix       # 仓库自带开发环境 `nix develop`（lix/nh/nixfmt/statix + starship，见第 8 节）
+    ├── templates.nix      # flake 模板：重导出 dev-templates
+    ├── core/              # flake 基础设施：nix.nix（Lix + 国内镜像源）、systems.nix
+    ├── system/            # 系统服务：networking(+daed)、boot、disko、impermanence、users、
+    │                      #   audio、bluetooth、graphics、input、zram、fonts、i18n、env、printing
+    ├── desktop/           # 桌面：default(profile)、niri、noctalia、kitty、qt、fcitx5、
+    │                      #   display(greetd)、portal、xwayland、audio、thunar
+    ├── programs/          # 各软件配置：neovim(nixvim)、zsh(+starship 主题)、git、pi、nh
+    ├── hardware/          # CPU/GPU：cpu-amd、nvidia、default(打包 cpu+gpu+graphics+bluetooth+input+zram)
+    ├── overlays/          # nixpkgs overlay（qq 的 Wayland 启动参数）
     └── hosts/
-        ├── uontabc/        # 裸机主机定义 + 专属 disko 分区方案
-        └── wsl/            # WSL 主机定义
+        ├── common.nix     # host 工厂（codeberg 风格）：hostProfiles + mkHostConfiguration
+        ├── uontabc/       # 裸机桌面主机：configuration.nix + disko.nix + _disko-devices.nix
+        └── wsl/           # WSL 主机：configuration.nix
 ```
 
 ### 关键约定
 
 - **仓库路径固定为 `~/nixos_dev`**：`nh.nix` 中 `programs.nh.flake` 硬编码了 `/home/<用户>/nixos_dev`，克隆时请保持这个路径，否则 `nh` 会失效。
-- **用户名默认 `onyx`**：如需修改，改 `modules/users.nix` 里的 `my.name`（同时注意 `impermanence.nix`、`zsh.nix`、`niri.nix` 等模块中用 `config.my.name` 动态生成路径，改一处即可全局生效）。
-- **密码为声明式 `hashedPassword`**：密码以 sha-512 hash 形式写在 `modules/users.nix`（仓库中的当前 hash 是公开的默认值，正式使用前必须更换）。运行 `mkpasswd -m sha-512` 生成新 hash，更新后执行 `nh os switch`，无需在系统里跑 `passwd`（`/` 每次开机回滚，非声明式的改动会丢失）。
+- **用户名默认 `onyx`**：如需修改，改 `modules/system/users.nix` 里的 `my.name`（同时注意 `impermanence.nix`、`zsh.nix`、`niri.nix` 等模块中用 `config.my.name` 动态生成路径，改一处即可全局生效）。
+- **密码为声明式 `hashedPassword`**：密码以 sha-512 hash 形式写在 `modules/system/users.nix`（仓库中的当前 hash 是公开的默认值，正式使用前必须更换）。运行 `mkpasswd -m sha-512` 生成新 hash，更新后执行 `nh os switch`，无需在系统里跑 `passwd`（`/` 每次开机回滚，非声明式的改动会丢失）。
 - **国内镜像源**已内置：`mirrors.ustc.edu.cn` 和 `mirror.sjtu.edu.cn` 优先，`cache.nixos.org` 兜底（已配置对应的 trusted public key，无需手动信任）。
 
 ---
@@ -87,7 +81,7 @@ substituters = https://mirrors.ustc.edu.cn/nix-channels/store https://cache.nixo
 experimental-features = nix-command flakes
 ```
 
-> 系统装好后，`modules/nix.nix` 已经把这些源写死在配置里，无需重复配置。
+> 系统装好后，`modules/core/nix.nix` 已经把这些源写死在配置里，无需重复配置。
 
 ### 3.3 克隆配置仓库
 
@@ -109,7 +103,7 @@ git clone https://github.com/uontabc/nixos_dev.git /home/onyx/nixos_dev
 | 2-5 | — | — | — | — | Windows / Fedora 分区，保留不动 |
 
 > 如果实际盘符不是 `/dev/nvme0n1p1/p6`，需要同步修改两处：
-> `modules/hosts/uontabc/_disko-devices.nix`（devices）和 `modules/hosts/uontabc/default.nix`
+> `modules/hosts/uontabc/_disko-devices.nix`（devices）和 `modules/hosts/uontabc/configuration.nix`
 > （`impermanence-rollback` initrd 服务里的设备引用）。
 
 ```bash
@@ -208,8 +202,8 @@ reboot
 ### 3.7 首次启动
 
 1. GRUB 菜单出现，选择 NixOS 进入。
-2. **根文件系统回滚**：initrd 中有一个 `impermanence-rollback` systemd 服务（`modules/hosts/uontabc/default.nix`），首次启动时若不存在 `@root-blank`，会把当前 `root` 子卷快照为 `@root-blank` 作为"出厂模板"；此后每次开机都会把 `/` 回滚到该模板。**这意味着 `/` 上的一切改动（除非在 /persist）都会在重启后消失**——这是设计使然。
-3. 通过 greetd + tuigreet 的 TUI 登录界面登录用户 `onyx`，密码即 `modules/users.nix` 中 `hashedPassword` 对应的密码（当前为 `uontabc`）。
+2. **根文件系统回滚**：initrd 中有一个 `impermanence-rollback` systemd 服务（`modules/hosts/uontabc/configuration.nix`），首次启动时若不存在 `@root-blank`，会把当前 `root` 子卷快照为 `@root-blank` 作为"出厂模板"；此后每次开机都会把 `/` 回滚到该模板。**这意味着 `/` 上的一切改动（除非在 /persist）都会在重启后消失**——这是设计使然。
+3. 通过 greetd + tuigreet 的 TUI 登录界面登录用户 `onyx`，密码即 `modules/system/users.nix` 中 `hashedPassword` 对应的密码（当前为 `uontabc`）。
 
 **首次登录后必做：**
 
@@ -222,9 +216,9 @@ vim ~/.ssh/authorized_keys   # 粘贴你的公钥，保存后会自动持久化
 findmnt / /nix /persist
 ```
 
-> 想改密码：在任意机器上运行 `mkpasswd -m sha-512` 生成新 hash，替换 `modules/users.nix` 中的 `hashedPassword` 后 `nh os switch`，用新密码登录验证即可。
+> 想改密码：在任意机器上运行 `mkpasswd -m sha-512` 生成新 hash，替换 `modules/system/users.nix` 中的 `hashedPassword` 后 `nh os switch`，用新密码登录验证即可。
 
-持久化清单见 `modules/impermanence.nix`：`/var/lib/nixos`、`/var/lib/systemd`、`/var/lib/NetworkManager`、`/var/log`、`/etc/ssh/ssh_host_*_key`、`/etc/machine-id`，以及用户目录下的 `Documents`、`Downloads`、`.ssh`、`.gnupg`、`.local/share`、`.local/state`、`.zsh_history`、`dev`、`Projects`、`nixos_dev` 等。`.ssh` 和 `.gnupg` 会按 `0700` 权限创建。
+持久化清单见 `modules/system/impermanence.nix`：`/var/lib/nixos`、`/var/lib/systemd`、`/var/lib/NetworkManager`、`/var/log`、`/etc/ssh/ssh_host_*_key`、`/etc/machine-id`，以及用户目录下的 `Documents`、`Downloads`、`.ssh`、`.gnupg`、`.local/share`、`.local/state`、`.zsh_history`、`dev`、`Projects`、`nixos_dev` 等。`.ssh` 和 `.gnupg` 会按 `0700` 权限创建。
 
 ---
 
@@ -267,7 +261,7 @@ tarball 已内置 flake 源码，可直接用它重装/切换：
 sudo nixos-rebuild switch --flake /etc/nixos#wsl
 ```
 
-特点说明（`modules/wsl.nix`）：
+特点说明（`modules/system/wsl.nix`）：
 
 - `defaultUser = onyx`，自动以该用户登录
 - `useWindowsDriver = true`：图形使用 Windows 宿主的 OpenGL/Vulkan 驱动（WSLg），不装 Linux 显卡驱动
@@ -295,7 +289,7 @@ nh list --generation
 sudo nixos-rebuild switch --flake /home/onyx/nixos_dev#uontabc --rollback
 ```
 
-- 桌面快捷键参考：`niri` 窗口键为 **Mod**（默认 `Mod4`/Super）。`Mod+Return` 开终端，`Mod+Space` 打开 noctalia 启动器，`Mod+S` 控制中心，音量/亮度用多媒体键（见 `modules/config/niri.nix` 完整键位表）。
+- 桌面快捷键参考：`niri` 窗口键为 **Mod**（默认 `Mod4`/Super）。`Mod+Return` 开终端，`Mod+Space` 打开 noctalia 启动器，`Mod+S` 控制中心，音量/亮度用多媒体键（见 `modules/desktop/niri.nix` 完整键位表）。
 - 更新 flake 依赖：`nix flake update`（注意：`nixvim` 使用自己锁定的 nixos-26.05 分支，**不要**改它的 nixpkgs 跟随，否则会报 `vimPlugins.<name> attribute not found`）。
 - 包管理：所有系统包都走声明式配置（`my.packages` / `environment.systemPackages`），不推荐 `nix profile` 混用。
 
@@ -358,7 +352,7 @@ sudo btrfs subvolume snapshot /mnt/@root-blank /mnt/root   # 需先卸载/换挂
 
 ### 9.2 `nixos-install` 报 fileSystems 相关错误
 
-多半是 3.5 的挂载没做完整（`root`/`nix`/`persist` 三个子卷 + `/mnt/boot`），用 `findmnt` 检查 `/mnt` 下挂载点；或盘符与配置不符（`modules/hosts/uontabc/_disko-devices.nix` 与 `modules/hosts/uontabc/default.nix` 里写死的 `/dev/nvme0n1p1`/`/dev/nvme0n1p6`）。
+多半是 3.5 的挂载没做完整（`root`/`nix`/`persist` 三个子卷 + `/mnt/boot`），用 `findmnt` 检查 `/mnt` 下挂载点；或盘符与配置不符（`modules/hosts/uontabc/_disko-devices.nix` 与 `modules/hosts/uontabc/configuration.nix` 里写死的 `/dev/nvme0n1p1`/`/dev/nvme0n1p6`）。
 
 ### 9.3 SSH 无法登录
 
@@ -381,5 +375,5 @@ trusted-public-keys = [ "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGsp
 
 ### 9.6 添加/修改 host
 
-- 新主机：在 `modules/hosts/<名字>/default.nix` 里仿照 `uontabc` 写 `hosts.<名字> = { system, stateVersion, module }`，`lib/nixos.nix` 会自动生成 `nixosConfigurations.<名字>`；同目录下的 `flake.modules.nixos.<名字>.*` 会被自动附加到该主机。
-- 改用户：改 `modules/users.nix` 的 `my.name`，`impermanence.nix` 的用户目录、`nh.nix` 的 flake 路径、`wsl.nix` 的 `defaultUser` 都会跟随。
+- 新主机：在 `modules/hosts/common.nix` 的 `hostProfiles` 里加一个 profile（或复用现有的），然后新建 `modules/hosts/<名字>/configuration.nix`，仿照 uontabc 调 `mkHostConfiguration { hostName = "<名字>"; nixosModules = <profile>.nixosModules; extraImports = [...]; extraConfig = ...; }`，即可自动生成 `nixosConfigurations.<名字>`。主机专属的 disko 分区方案放同目录 `_disko-devices.nix`（下划线前缀避免被 import-tree 导入），通过 `extraImports` 传入。
+- 改用户：改 `modules/system/users.nix` 的 `my.name`，`impermanence.nix` 的用户目录、`nh.nix` 的 flake 路径、`wsl.nix` 的 `defaultUser` 都会跟随。

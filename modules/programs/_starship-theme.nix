@@ -1,10 +1,13 @@
 { pkgs }:
-# Starship theme: the official "no-empty-icons" preset
-# (https://starship.rs/presets/#no-empty-icons) — toolset icons are only
-# shown when the toolset is actually detected.
+# Starship themes.
 #
-# `host` is symlinked to ~/.config/starship.toml by modules/config/zsh.nix;
-# `devshell` is pointed at via $STARSHIP_CONFIG by modules/devshell.nix.
+# `host` (symlinked to ~/.config/starship.toml by modules/programs/zsh.nix)
+# is the minimal theme from the old codeberg nix-config repo
+# (modules/programs/starship.nix): directory + git + nix-shell only.
+#
+# `devshell` (pointed at via $STARSHIP_CONFIG by modules/devshell.nix) is the
+# official "no-empty-icons" preset (https://starship.rs/presets/#no-empty-icons)
+# — toolset icons are only shown when the toolset is actually detected.
 let
   preset = ''
     "$schema" = 'https://starship.rs/config-schema.json'
@@ -149,6 +152,28 @@ let
   '';
 in
 {
-  host = pkgs.writeText "starship.toml" preset;
+  host = pkgs.writeText "starship.toml" ''
+    # Minimal theme (ported from codeberg nix-config).
+    add_newline = false
+
+    [fill]
+    symbol = " "
+
+    format = "$directory$nix_shell$direnv$fill$git_branch$git_status$line_break$character"
+
+    [nix_shell]
+    format = "via [$state nix-shell]($style)"
+
+    command_timeout = 1000
+    scan_timeout = 50
+
+    [direnv]
+    disabled = false
+    format = " [$symbol]($style) "
+
+    [directory]
+    truncation_symbol = "../"
+    truncate_to_repo = false
+  '';
   devshell = pkgs.writeText "starship-devshell.toml" preset;
 }
