@@ -41,6 +41,9 @@
       url = "github:the-nix-way/dev-templates";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    # Hjem — declarative $HOME file management (replaces the ad-hoc
+    # systemd-tmpfiles rules in modules; see modules/hjem.nix).
+    hjem.url = "github:feel-co/hjem";
     # Tokyo Night GRUB theme (plain repo, not a flake).
     tokyo-night-grub = {
       url = "github:mino29/tokyo-night-grub";

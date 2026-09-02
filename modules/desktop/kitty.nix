@@ -31,14 +31,15 @@
         map ctrl+shift+right next_tab
         map ctrl+shift+left  previous_tab
       '';
-      home = "/home/${config.my.name}";
     in
     {
       my.packages = [ pkgs.kitty ];
 
-      systemd.tmpfiles.rules = [
-        "d ${home}/.config/kitty 0755 ${config.my.name} users -"
-        "L+ ${home}/.config/kitty/kitty.conf - - - - ${kittyConfig}"
-      ];
+      # kitty.conf managed by hjem (modules/hjem.nix); the old tmpfiles rule
+      # is gone — hjem's linker creates ~/.config/kitty as the user.
+      hjem.users.${config.my.name}.xdg.config.files."kitty/kitty.conf" = {
+        source = kittyConfig;
+        clobber = true;
+      };
     };
 }

@@ -2,7 +2,6 @@
   flake.modules.nixos.niri =
     { pkgs, config, ... }:
     let
-      home = "/home/${config.my.name}";
       niriConfig = pkgs.writeText "niri-config.kdl" ''
         // Ask clients to omit their decorations so niri draws consistent
         // frames that follow the window corner radius below.
@@ -188,9 +187,10 @@
       # renders at 1x DPI and the fcitx5 candidate window comes out tiny.
       environment.sessionVariables.NIXOS_OZONE_WL = "1";
 
-      systemd.tmpfiles.rules = [
-        "d ${home}/.config/niri 0755 ${config.my.name} users -"
-        "L+ ${home}/.config/niri/config.kdl - - - - ${niriConfig}"
-      ];
+      # niri config managed by hjem (modules/hjem.nix).
+      hjem.users.${config.my.name}.xdg.config.files."niri/config.kdl" = {
+        source = niriConfig;
+        clobber = true;
+      };
     };
 }

@@ -2,9 +2,6 @@
   flake.modules.nixos.fcitx5 =
     { pkgs, config, ... }:
     let
-      home = "/home/${config.my.name}";
-      rimeDir = "${home}/.local/share/fcitx5/rime";
-
       # The active theme. Ori is not packaged in nixpkgs — fetch from upstream
       # and drop into the themes dir.
       fcitx5-ori = pkgs.stdenv.mkDerivation {
@@ -59,10 +56,12 @@
         };
       };
 
-      systemd.tmpfiles.rules = [
-        "d ${home}/.local/share/fcitx5 0755 ${config.my.name} users -"
-        "d ${rimeDir} 0755 ${config.my.name} users -"
-        "L+ ${rimeDir}/default.custom.yaml - - - - ${defaultCustom}"
-      ];
+      # Rime schema activated via ~/.local/share/fcitx5/rime — managed by hjem
+      # (modules/hjem.nix). The rime dir itself is created by the linker; only
+      # the .custom.yaml is declared (fcitx5 writes its own files alongside).
+      hjem.users.${config.my.name}.xdg.data.files."fcitx5/rime/default.custom.yaml" = {
+        source = defaultCustom;
+        clobber = true;
+      };
     };
 }

@@ -2,6 +2,7 @@
   flake.modules.nixos.base = { pkgs, lib, ... }: {
     imports = with config.flake.modules.nixos; [
       users
+      hjem
       nix
       i18n
       env

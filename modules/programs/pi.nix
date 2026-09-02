@@ -7,9 +7,6 @@
       ...
     }:
     let
-      home = "/home/${config.my.name}";
-      agentDir = "${home}/.pi/agent";
-
       piSettings = pkgs.writeText "pi-settings.json" (
         builtins.toJSON (
           {
@@ -41,11 +38,22 @@
         PI_SKIP_VERSION_CHECK = "1";
       };
 
-      systemd.tmpfiles.rules = [
-        "d ${home}/.pi 0700 ${config.my.name} users -"
-        "d ${agentDir} 0700 ${config.my.name} users -"
-        "L+ ${agentDir}/settings.json - - - - ${piSettings}"
-      ];
+      # ~/.pi layout, managed by hjem (modules/hjem.nix). The settings file
+      # used to be a systemd-tmpfiles L+ rule; clobber keeps that semantics.
+      hjem.users.${config.my.name}.files = {
+        ".pi" = {
+          type = "directory";
+          permissions = "0700";
+        };
+        ".pi/agent" = {
+          type = "directory";
+          permissions = "0700";
+        };
+        ".pi/agent/settings.json" = {
+          source = piSettings;
+          clobber = true;
+        };
+      };
 
       # API keys live in ~/.pi/agent/auth.json (0600), e.g.
       #   {"deepseek": {"type": "api_key", "key": "sk-..."}}

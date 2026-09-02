@@ -2,8 +2,6 @@
   flake.modules.nixos.neovim =
     { pkgs, config, ... }:
     let
-      home = "/home/${config.my.name}";
-
       # Declarative init.lua, read from the repo and embedded in the wrapper
       # (loaded via VIMINIT, so ~/.config/nvim is not consulted). Plugins come
       # from Nix packages on the runtimepath — nothing is fetched at runtime.
@@ -125,13 +123,23 @@
         VISUAL = "nvim";
       };
 
-      # Impermanence wipes home each boot; recreate the state/data dirs owned by
-      # the user (tmpfiles would otherwise leave them root-owned and Neovim
-      # couldn't write its shada/undo files). Mirrors the old Emacs setup.
-      systemd.tmpfiles.rules = [
-        "d ${home}/.local/share/nvim 0755 ${config.my.name} users -"
-        "d ${home}/.local/state/nvim 0755 ${config.my.name} users -"
-        "d ${home}/.local/state/nvim/undo 0755 ${config.my.name} users -"
-      ];
+      # Impermanence wipes home each boot; recreate the state/data dirs owned
+      # by the user (a root-owned dir would leave Neovim unable to write its
+      # shada/undo files). Mirrors the old Emacs setup. Now managed by hjem
+      # (modules/hjem.nix).
+      hjem.users.${config.my.name}.files = {
+        ".local/share/nvim" = {
+          type = "directory";
+          permissions = "0755";
+        };
+        ".local/state/nvim" = {
+          type = "directory";
+          permissions = "0755";
+        };
+        ".local/state/nvim/undo" = {
+          type = "directory";
+          permissions = "0755";
+        };
+      };
     };
 }

@@ -181,20 +181,32 @@
         pkgs.gpu-screen-recorder
       ];
 
-      systemd.tmpfiles.rules = [
-        "d ${home}/.config/noctalia 0755 ${config.my.name} users -"
-        "L+ ${home}/.config/noctalia/config.toml - - - - ${noctaliaConfig}"
-        # Create the dirs user-owned first: a root-owned dir here trips
-        # systemd-tmpfiles' unsafe-path-transition check and silently skips the
-        # L+ rules below (the settings.ini symlinks would never appear).
-        "d ${home}/.config/gtk-3.0 0755 ${config.my.name} users -"
-        "d ${home}/.config/gtk-4.0 0755 ${config.my.name} users -"
-        "L+ ${home}/.config/gtk-3.0/settings.ini - - - - ${gtkSettings}"
-        "L+ ${home}/.config/gtk-4.0/settings.ini - - - - ${gtkSettings}"
+      # User config files managed by hjem (modules/hjem.nix). Noctalia
+      # resolves tray icons against settings.ini, so the gtk dirs must be
+      # user-owned — the hjem linker creates them as the user, which avoids
+      # the unsafe-path-transition issue the old tmpfiles rules had.
+      hjem.users.${config.my.name} = {
+        xdg.config.files = {
+          "noctalia/config.toml" = {
+            source = noctaliaConfig;
+            clobber = true;
+          };
+          "gtk-3.0/settings.ini" = {
+            source = gtkSettings;
+            clobber = true;
+          };
+          "gtk-4.0/settings.ini" = {
+            source = gtkSettings;
+            clobber = true;
+          };
+        };
         # Runtime state noctalia writes on first start (settings, state,
         # clipboard history, community cache). Ensure it exists even on the
         # very first boot before impermanence has seeded it.
-        "d ${home}/.local/state/noctalia 0755 ${config.my.name} users -"
-      ];
+        xdg.state.files."noctalia" = {
+          type = "directory";
+          permissions = "0755";
+        };
+      };
     };
 }
