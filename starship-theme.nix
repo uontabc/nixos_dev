@@ -154,18 +154,19 @@ in
 {
   host = pkgs.writeText "starship.toml" ''
     # Minimal theme (ported from codeberg nix-config).
+    # Top-level keys first — in TOML, bare keys after a [table] header
+    # belong to that table, so put format/command_timeout/scan_timeout
+    # before any [section].
     add_newline = false
+    format = "$directory$nix_shell$direnv$fill$git_branch$git_status$line_break$character"
+    command_timeout = 1000
+    scan_timeout = 50
 
     [fill]
     symbol = " "
 
-    format = "$directory$nix_shell$direnv$fill$git_branch$git_status$line_break$character"
-
     [nix_shell]
     format = "via [$state nix-shell]($style)"
-
-    command_timeout = 1000
-    scan_timeout = 50
 
     [direnv]
     disabled = false
