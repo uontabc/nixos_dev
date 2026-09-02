@@ -28,34 +28,6 @@
           }
         )
       );
-
-      # Custom provider catalog (https://developer.amd.com.cn/radeon — AMD
-      # Radeon Cloud, OpenAI-compatible gateway, free public model APIs).
-      # AMD picks which models are served; run `curl -H "Authorization:
-      # Bearer $RADEON_API_KEY" https://developer.amd.com.cn/radeon/api/v1/models`
-      # to refresh the list.
-      piModels = pkgs.writeText "pi-models.json" (
-        builtins.toJSON {
-          providers.radeon = {
-            name = "AMD Radeon Cloud";
-            baseUrl = "https://developer.amd.com.cn/radeon/api/v1";
-            api = "openai-completions";
-            apiKey = "$RADEON_API_KEY";
-            models = [
-              {
-                id = "DeepSeek-V4-Flash";
-                name = "DeepSeek V4 Flash";
-                reasoning = true;
-              }
-              {
-                id = "Qwen3.8-Flash-Next";
-                name = "Qwen3.8 Flash Next";
-                reasoning = true;
-              }
-            ];
-          };
-        }
-      );
     in
     {
       my.packages = [ pkgs.pi-coding-agent ];
@@ -81,19 +53,13 @@
           source = piSettings;
           clobber = true;
         };
-        ".pi/agent/models.json" = {
-          source = piModels;
-          clobber = true;
-        };
       };
 
       # API keys live in ~/.pi/agent/auth.json (0600), e.g.
       #   {"deepseek": {"type": "api_key", "key": "sk-..."}}
-      #   {"radeon": {"type": "api_key", "key": "rc-..."}}
-      # Create it with `pi`'s /login or write it yourself (RADEON_API_KEY
-      # env var also works — the AMD key is shown in the Token Factory / your
-      # profile page at developer.amd.com.cn/radeon). `~/.pi` is persisted by
-      # impermanence, so it survives reboots.
+      # Create it with `pi`'s /login or write it yourself (DEEPSEEK_API_KEY
+      # env var also works). `~/.pi` is persisted by impermanence, so it
+      # survives reboots.
       #
       # If you get "Error: Connection error." when talking to the model, set
       # `my.piHttpProxy` in modules/system/users.nix to your local proxy
