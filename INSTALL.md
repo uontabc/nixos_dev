@@ -1,16 +1,22 @@
 # NixOS Flake 安装文档
 
-本仓库是一套基于 **Flake** 的 NixOS 配置，使用 `flake-parts` + `import-tree` 组织成模块化的目录结构，内置两个主机（host）：
+本仓库是一套基于 **Flake** 的 NixOS 配置，使用 `flake-parts` + `import-tree` 组织成模块化的目录结构，内置五个主机（host）：
 
 | 主机名 | 用途 | 说明 |
 |--------|------|------|
 | `uontabc` | 裸机桌面 | AMD CPU + NVIDIA 显卡，niri Wayland 合成器，btrfs + impermanence（不可变根），GRUB 引导 |
+| `laptop` | 笔记本（Intel + NVIDIA） | NixOS 在 `/dev/nvme1n1`，Windows 在 `/dev/nvme0n1`（GRUB + os-prober 双引导），NVIDIA 闭源 beta 驱动 |
+| `oldpc` | 旧台式机（Intel 核显） | 单盘 `/dev/sda`，systemd-boot 引导 |
+| `vps` | 无头服务器 | virtio 磁盘 `/dev/vda`，GRUB removable EFI，无桌面，SSH 密钥登录，可用 deploy-rs 远程部署 |
 | `wsl` | Windows WSL2 | 纯终端发行版（NixOS-WSL），无桌面，使用 Windows 宿主 GPU 驱动（WSLg） |
 
 - nixpkgs 分支：`nixos-unstable`（nixvim 例外，使用自己锁定的 `nixos-26.05`）
 - 系统 Nix：**Lix**（来自 nixpkgs）
 - 包管理辅助：**nh**（`nh os switch` / `nh clean`）
+- 远程部署：**deploy-rs**（`deploy .#vps`，见第 5.4 节）
 - 开发环境：**dev-templates**（the-nix-way 多语言开发模板，见第 7 节）
+
+> `laptop` / `oldpc` / `vps` 从旧仓库 [codeberg.org/uontabc/nix-config](https://codeberg.org/uontabc/nix-config) 合并而来；该仓库仍保留为 `git remote codeberg` 便于对照。
 
 ---
 
@@ -22,25 +28,30 @@ nixos_dev/
 ├── flake.lock             # 依赖锁定文件
 └── modules/
     ├── base.nix           # 所有主机共用的基础模块（用户、Nix、i18n、nh、编辑器、shell 等；不含桌面/浏览器）
-    ├── users.nix          # 用户定义（默认用户名 onyx），含 my.name / my.packages 自定义选项
+    ├── users.nix          # 用户定义（默认用户名 onyx），含 my.name / my.packages / my.sshAuthorizedKeys 自定义选项
     ├── nix.nix            # Lix、国内镜像源（USTC/SJTU）、Flake 实验特性
     ├── env.nix             # 全局环境变量（Wayland、XDG）
     ├── nh.nix              # nh 配置：flake 路径硬编码为 ~/nixos_dev，每周自动清理
     ├── boot.nix            # GRUB + EFI + os-prober，btrfs/ntfs 支持，/tmp 用 tmpfs
     ├── network.nix         # NetworkManager、防火墙、SSH（仅密钥登录）
-    ├── impermanence.nix    # /persist 持久化目录/文件清单
-    ├── disko.nix           # 引入 disko 的 NixOS 模块（分区/文件系统定义）
+    ├── impermanence.nix    # /persist 持久化目录/文件清单 + initrd 根子卷回滚服务（impermanence.rollbackDevice 选项）
+    ├── disko.nix           # 引入 disko 的 NixOS 模块 + 各主机 diskoConfigurations 输出
+    ├── printing.nix        # CUPS 打印 + Avahi 发现（桌面主机启用）
+    ├── deploy.nix          # deploy-rs 节点：laptop / oldpc / vps（`deploy .#vps`）
     ├── wsl.nix             # NixOS-WSL 模块（host: wsl 专用）
     ├── templates.nix       # flake 模板：重导出 dev-templates
-    ├── devshell.nix        # 仓库自带开发环境 `nix develop`（lix/nh/nixfmt/statix + starship，见第 8 节）
+    ├── devshell.nix        # 仓库自带开发环境 `nix develop`（lix/nh/nixfmt/statix/deploy-rs + starship，见第 8 节）
     ├── flake-parts.nix     # flake-parts 接入、pkgs 构造（仅放行 qq/helium 等 unfree 包）
     ├── systems.nix         # 支持的平台（x86_64-linux）
     ├── lib/nixos.nix       # host 工厂：由 modules/hosts/* 自动生成 nixosConfigurations
-    ├── config/             # 各软件配置：niri、kitty、neovim、opencode、zsh、git、fonts、qt、i18n、nix、_starship-theme
-    ├── desktop/            # 桌面相关：niri、greetd、pipewire、xdg-portal、noctalia、xwayland、字体
-    ├── hardware/           # 硬件相关：AMD CPU、NVIDIA、显卡、蓝牙、输入
+    ├── config/             # 各软件配置：niri、kitty、neovim、pi、zsh、git、fonts、qt、i18n、nix、_starship-theme
+    ├── desktop/            # 桌面相关：niri、greetd、pipewire、xdg-portal、noctalia、xwayland、字体、打印
+    ├── hardware/           # 硬件相关：显卡、蓝牙、输入、zram（通用）；cpu-amd / cpu-intel / nvidia 按主机导入
     └── hosts/
-        ├── uontabc/        # 裸机主机定义 + 专属 disko 分区方案
+        ├── uontabc/        # 裸机桌面（AMD + NVIDIA），专属 disko 分区方案
+        ├── laptop/         # Intel + NVIDIA 笔记本，双引导
+        ├── oldpc/          # Intel 核显台式机，systemd-boot
+        ├── vps/            # 无头服务器
         └── wsl/            # WSL 主机定义
 ```
 
@@ -207,7 +218,7 @@ reboot
 ### 3.7 首次启动
 
 1. GRUB 菜单出现，选择 NixOS 进入。
-2. **根文件系统回滚**：initrd 中有一个 `impermanence-rollback` systemd 服务（`modules/hosts/uontabc/default.nix`），首次启动时若不存在 `@root-blank`，会把当前 `root` 子卷快照为 `@root-blank` 作为"出厂模板"；此后每次开机都会把 `/` 回滚到该模板。**这意味着 `/` 上的一切改动（除非在 /persist）都会在重启后消失**——这是设计使然。
+2. **根文件系统回滚**：initrd 中有一个 `impermanence-rollback` systemd 服务（定义在 `modules/impermanence.nix`，各主机通过 `impermanence.rollbackDevice` 指定 btrfs 顶层设备），首次启动时若不存在 `@root-blank`，会把当前 `root` 子卷快照为 `@root-blank` 作为"出厂模板"；此后每次开机都会把 `/` 回滚到该模板。**这意味着 `/` 上的一切改动（除非在 /persist）都会在重启后消失**——这是设计使然。
 3. 通过 greetd + tuigreet 的 TUI 登录界面登录用户 `onyx`，密码即 `modules/users.nix` 中 `hashedPassword` 对应的密码（当前为 `uontabc`）。
 
 **首次登录后必做：**
@@ -224,6 +235,32 @@ findmnt / /nix /persist
 > 想改密码：在任意机器上运行 `mkpasswd -m sha-512` 生成新 hash，替换 `modules/users.nix` 中的 `hashedPassword` 后 `nh os switch`，用新密码登录验证即可。
 
 持久化清单见 `modules/impermanence.nix`：`/var/lib/nixos`、`/var/lib/systemd`、`/var/lib/NetworkManager`、`/var/log`、`/etc/ssh/ssh_host_*_key`、`/etc/machine-id`，以及用户目录下的 `Documents`、`Downloads`、`.ssh`、`.gnupg`、`.local/share`、`.local/state`、`.zsh_history`、`dev`、`Projects`、`nixos_dev` 等。`.ssh` 和 `.gnupg` 会按 `0700` 权限创建。
+
+### 3.8 其他主机安装（laptop / oldpc / vps）
+
+这三个主机是从旧仓库 codeberg.org/uontabc/nix-config 合并过来的，安装流程与 uontabc 相同（disko 分区 → `nixos-install`），但注意以下差异：
+
+| 主机 | 磁盘 | 引导 | 特别说明 |
+|------|------|------|----------|
+| `laptop` | `/dev/nvme1n1`（NixOS 盘；Windows 在 `/dev/nvme0n1`） | GRUB + os-prober 双引导 | NVIDIA 闭源 beta 驱动（`hardware.nvidia.open = false`）；`ntfs3g` 读写 Windows 分区；swap 16G |
+| `oldpc` | `/dev/sda` | systemd-boot | Intel 核显，无独显；swap 8G |
+| `vps` | `/dev/vda` | GRUB removable EFI（`efiInstallAsRemovable`） | 无桌面/硬件模块；virtio 磁盘；swap 2G；SSH 仅密钥登录 |
+
+安装示例（以 laptop 为例，其他主机替换主机名和磁盘）：
+
+```bash
+# live 环境：克隆并分区
+cd /tmp && git clone https://github.com/uontabc/nixos_dev.git
+cd nixos_dev
+sudo nix run github:nix-community/disko -- --flake .#laptop --mode format,mount
+
+# 安装（分区方案见 modules/hosts/laptop/_disko-devices.nix）
+sudo nixos-install --flake /tmp/nixos_dev#laptop
+```
+
+> 与 uontabc 不同，laptop / oldpc / vps 的 disko 方案是**整盘新建**（ESP + btrfs，含 swap 子卷），`destroy,format,mount` 会清空整块目标盘。
+
+**vps 首次部署前必做**：把真实 SSH 公钥填进 `modules/hosts/vps/default.nix` 的 `my.sshAuthorizedKeys`（SSH 密码登录已关闭，没有密钥无法登录）。
 
 ---
 
@@ -298,13 +335,30 @@ sudo nixos-rebuild switch --flake /home/onyx/nixos_dev#uontabc --rollback
 - 更新 flake 依赖：`nix flake update`（注意：`nixvim` 使用自己锁定的 nixos-26.05 分支，**不要**改它的 nixpkgs 跟随，否则会报 `vimPlugins.<name> attribute not found`）。
 - 包管理：所有系统包都走声明式配置（`my.packages` / `environment.systemPackages`），不推荐 `nix profile` 混用。
 
+### 5.4 远程部署（deploy-rs）
+
+`laptop` / `oldpc` / `vps` 可用 [deploy-rs](https://github.com/serokell/deploy-rs) 远程部署（节点定义在 `modules/deploy.nix`）：
+
+```bash
+# 进入仓库开发环境（自带 deploy CLI），或直接：
+nix run .#deploy-rs -- .#vps
+
+# 部署全部远程主机
+nix run .#deploy-rs -- .
+
+# 指定节点
+deploy .#laptop
+```
+
+要求：目标机的 `root` 或部署用户已配置你的 SSH 公钥（见上文 vps 的 `my.sshAuthorizedKeys`）。
+
 ---
 
 ## 6. 凭据管理
 
 本仓库不使用声明式 secrets 工具（如 vaultix / sops-nix）。用户级凭据按各应用的默认位置存放：
 
-- **opencode**：API key 存放在 `~/.local/share/opencode/auth.json`（格式 `{"deepseek": {"api_key": "..."}}`）。用 `opencode auth login` 或手动写入该文件即可；`~/.local/share` 已由 impermanence 持久化，重启不丢。
+- **pi**：API key 存放在 `~/.pi/agent/auth.json`（格式 `{"deepseek": {"type": "api_key", "key": "..."}}`）。用 pi 的 `/login` 或手动写入该文件即可；`~/.pi` 已由 impermanence 持久化，重启不丢。
 - **其他应用**：按各自默认路径（如 `~/.ssh/`、`~/.gnupg/`），这些目录同样在持久化清单里。
 
 > 手动写入的凭据不会被任何声明式流程覆盖；改 key 直接在对应文件里改即可。
@@ -357,13 +411,14 @@ sudo btrfs subvolume snapshot /mnt/@root-blank /mnt/root   # 需先卸载/换挂
 
 ### 9.2 `nixos-install` 报 fileSystems 相关错误
 
-多半是 3.5 的挂载没做完整（`root`/`nix`/`persist` 三个子卷 + `/mnt/boot`），用 `findmnt` 检查 `/mnt` 下挂载点；或盘符与配置不符（`modules/hosts/uontabc/_disko-devices.nix` 与 `modules/hosts/uontabc/default.nix` 里写死的 `/dev/nvme0n1p1`/`/dev/nvme0n1p6`）。
+多半是 3.5 的挂载没做完整（`root`/`nix`/`persist` 三个子卷 + `/mnt/boot`），用 `findmnt` 检查 `/mnt` 下挂载点；或盘符与配置不符（各主机的 `modules/hosts/<名>/_disko-devices.nix` 与 `modules/impermanence.nix` 里 `impermanence.rollbackDevice` 写死的设备）。
 
 ### 9.3 SSH 无法登录
 
 `network.nix` 设置了 `PasswordAuthentication = false`，且用户没有密码登录通道。请确认：
 
 - 公钥已写入 `~/.ssh/authorized_keys`（注意 impermanence：文件必须放在 `/persist/home/onyx/.ssh/` 对应位置，`~/.ssh` 由 `hideMounts` bind mount 持久化，直接编辑 `~/.ssh/authorized_keys` 即可）
+- 无头主机（vps）的密钥需提前声明在 `modules/hosts/vps/default.nix` 的 `my.sshAuthorizedKeys`（安装到 vps 的配置里写的是空列表，首次部署前务必填上）
 - 或临时在配置中放开密码认证后 `nh os switch` 再登录
 
 ### 9.4 NVIDIA / prime offload
@@ -380,5 +435,8 @@ trusted-public-keys = [ "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGsp
 
 ### 9.6 添加/修改 host
 
-- 新主机：在 `modules/hosts/<名字>/default.nix` 里仿照 `uontabc` 写 `hosts.<名字> = { system, stateVersion, module }`，`lib/nixos.nix` 会自动生成 `nixosConfigurations.<名字>`；同目录下的 `flake.modules.nixos.<名字>.*` 会被自动附加到该主机。
+- 新主机：在 `modules/hosts/<名字>/default.nix` 里仿照现有主机写 `hosts.<名字> = { system, stateVersion, module }`，`lib/nixos.nix` 会自动生成 `nixosConfigurations.<名字>`；同目录下的 `flake.modules.nixos.<名字>.*` 会被自动附加到该主机（例如 `disko.nix` 指向 `_disko-devices.nix` 的分区方案）。
+- 回滚设备：每台使用 impermanence 的裸机都要在主机定义里设置 `impermanence.rollbackDevice`（btrfs 顶层设备），否则 initrd 不会回滚 `/`。
+- CPU/GPU 模块是**按主机**导入的：AMD 机（uontabc）导 `cpu-amd` + `nvidia`，Intel 机（laptop/oldpc）导 `cpu-intel`，vps 不导。
 - 改用户：改 `modules/users.nix` 的 `my.name`，`impermanence.nix` 的用户目录、`nh.nix` 的 flake 路径、`wsl.nix` 的 `defaultUser` 都会跟随。
+- 部署节点：在 `modules/deploy.nix` 的 `flake.deploy.nodes` 里加一行即可用 deploy-rs 远程部署。

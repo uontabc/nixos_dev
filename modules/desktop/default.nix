@@ -11,6 +11,7 @@
       qt
       fcitx5
       fonts
+      printing
     ];
 
     my.packages = with pkgs; [
