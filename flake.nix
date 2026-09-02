@@ -50,11 +50,5 @@
       url = "github:mino29/tokyo-night-grub";
       flake = false;
     };
-    # Remote deployment (`deploy` CLI + `deploy .#vps`), from the old
-    # nix-config repo.
-    deploy-rs = {
-      url = "github:serokell/deploy-rs";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
 }

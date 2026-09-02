@@ -1,144 +1,55 @@
-{ inputs, lib, ... }: {
+{ inputs, ... }: {
   flake.modules.nixos.impermanence =
-    { config, pkgs, ... }:
-    {
+    { config, ... }: {
       imports = [ inputs.impermanence.nixosModules.impermanence ];
 
-      # btrfs toplevel device to roll root back from @root-blank on every
-      # boot, e.g. "/dev/nvme0n1p6". Set per-host in modules/hosts/<name>/.
-      options.impermanence.rollbackDevice = lib.mkOption {
-        type = lib.types.nullOr lib.types.str;
-        default = null;
-        description = ''
-          btrfs toplevel device (subvolid=5) that holds the `root` subvolume.
-          When set, stage-1 rolls `root` back to the @root-blank snapshot at
-          every boot (impermanence) and /persist is marked neededForBoot.
-        '';
+      environment.persistence."/persist" = {
+        enable = true;
+        hideMounts = true;
+
+        directories = [
+          "/var/lib/nixos"
+          "/var/lib/systemd"
+          "/var/lib/NetworkManager"
+          "/var/lib/bluetooth"
+          "/var/log"
+          "/etc/NetworkManager/system-connections"
+          "/etc/daed"
+        ];
+
+        files = [
+          "/etc/machine-id"
+          "/etc/ssh/ssh_host_ed25519_key"
+          "/etc/ssh/ssh_host_ed25519_key.pub"
+          "/etc/ssh/ssh_host_rsa_key"
+          "/etc/ssh/ssh_host_rsa_key.pub"
+        ];
+
+        users.${config.my.name} = {
+          directories = [
+            "Documents"
+            "Downloads"
+            "Pictures"
+            "Music"
+            "Videos"
+            "Projects"
+            # The flake repo itself — wiped root subvolume would delete it.
+            "nixos_dev"
+            # Development workspace.
+            "dev"
+            { directory = ".ssh"; mode = "0700"; }
+            ".local/share"
+            ".local/state"
+            { directory = ".gnupg"; mode = "0700"; }
+            # pi coding agent: settings/auth/sessions under ~/.pi.
+            {
+              directory = ".pi";
+              mode = "0700";
+            }
+          ];
+
+          files = [ ".zsh_history" ];
+        };
       };
-
-      config = lib.mkMerge [
-        (lib.mkIf (config.impermanence.rollbackDevice != null) {
-          # disko does not set neededForBoot on generated mounts; stage-1
-          # needs /persist (impermanence bind-mounts from it in the initrd).
-          fileSystems."/persist".neededForBoot = true;
-
-          # btrfs subvolume rollback in systemd stage-1 (systemd initrd is
-          # now the default, so boot.initrd.postDeviceCommands is
-          # unsupported). Mount the toplevel (subvolid=5), then either seed
-          # @root-blank (first boot) or roll root back to @root-blank — runs
-          # before /sysroot is mounted.
-          boot.initrd.systemd = {
-            services.impermanence-rollback =
-              let
-                device = config.impermanence.rollbackDevice;
-                # /dev/nvme0n1p6 -> dev-nvme0n1p6 (systemd device unit name).
-                unit = "dev-${lib.replaceStrings [ "/" ] [ "-" ] device}";
-              in
-              {
-                description = "Impermanence: roll back root btrfs subvolume";
-                wantedBy = [ "initrd.target" ];
-                before = [ "sysroot.mount" ];
-                # Wait for the btrfs device to appear — the disk may not be
-                # probed yet at initrd startup.
-                after = [ "${unit}.device" ];
-                requires = [ "${unit}.device" ];
-                unitConfig.DefaultDependencies = "no";
-                serviceConfig = {
-                  Type = "oneshot";
-                  RemainAfterExit = true;
-                };
-                script = ''
-                  mkdir -p /btrfs-tl
-                  mount -t btrfs -o subvolid=5 ${device} /btrfs-tl
-
-                  if [ -d /btrfs-tl/@root-blank ]; then
-                    echo "[impermanence] rolling back root subvolume from @root-blank"
-                    # -R: root contains nested subvolumes (systemd-tmpfiles
-                    # creates /tmp, /var/tmp, /srv, /var/lib/machines,
-                    # /var/lib/portables as btrfs subvolumes). A plain delete
-                    # fails with ENOTEMPTY, so every rollback silently failed
-                    # since this machine was set up.
-                    btrfs subvolume delete -R /btrfs-tl/root
-                    btrfs subvolume snapshot /btrfs-tl/@root-blank /btrfs-tl/root
-                  else
-                    echo "[impermanence] first boot: seeding @root-blank from root"
-                    btrfs subvolume snapshot /btrfs-tl/root /btrfs-tl/@root-blank
-                  fi
-
-                  umount /btrfs-tl
-                  rmdir /btrfs-tl
-                '';
-              };
-
-            # btrfs-progs must be reachable from the systemd initrd
-            # environment. `boot.initrd.systemd.storePaths` only copies the
-            # files into the initrd but does NOT put `btrfs` on PATH (initrd
-            # PATH is fixed to /bin:/sbin). Symlinking it into /bin via
-            # `extraBin` is what makes the bare `btrfs` call in the rollback
-            # script resolve — without this the rollback/seed silently never
-            # ran ("btrfs: command not found").
-            extraBin.btrfs = "${pkgs.btrfs-progs}/bin/btrfs";
-            storePaths = [ "${pkgs.btrfs-progs}/bin" ];
-          };
-        })
-
-        # What survives a reboot under /persist (same for every host).
-        {
-          environment.persistence."/persist" = {
-            enable = true;
-            hideMounts = true;
-
-            directories = [
-              "/var/lib/nixos"
-              "/var/lib/systemd"
-              "/var/lib/NetworkManager"
-              "/var/lib/bluetooth"
-              "/var/log"
-              "/etc/NetworkManager/system-connections"
-              "/etc/daed"
-            ];
-
-            files = [
-              "/etc/machine-id"
-              "/etc/ssh/ssh_host_ed25519_key"
-              "/etc/ssh/ssh_host_ed25519_key.pub"
-              "/etc/ssh/ssh_host_rsa_key"
-              "/etc/ssh/ssh_host_rsa_key.pub"
-            ];
-
-            users.${config.my.name} = {
-              directories = [
-                "Documents"
-                "Downloads"
-                "Pictures"
-                "Music"
-                "Videos"
-                "Projects"
-                # The flake repo itself — wiped root subvolume would delete it.
-                "nixos_dev"
-                # Development workspace.
-                "dev"
-                {
-                  directory = ".ssh";
-                  mode = "0700";
-                }
-                ".local/share"
-                ".local/state"
-                {
-                  directory = ".gnupg";
-                  mode = "0700";
-                }
-                # pi coding agent: settings/auth/sessions under ~/.pi.
-                {
-                  directory = ".pi";
-                  mode = "0700";
-                }
-              ];
-
-              files = [ ".zsh_history" ];
-            };
-          };
-        }
-      ];
     };
 }

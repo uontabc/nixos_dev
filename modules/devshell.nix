@@ -1,6 +1,6 @@
 { ... }: {
   perSystem =
-    { pkgs, inputs', ... }:
+    { pkgs, ... }:
     let
       starshipConfig = (import ./config/_starship-theme.nix { inherit pkgs; }).devshell;
     in
@@ -13,8 +13,6 @@
           pkgs.statix
           pkgs.git
           pkgs.zsh
-          # deploy-rs CLI: `deploy .#vps` (see modules/deploy.nix).
-          inputs'.deploy-rs.packages.deploy-rs
         ];
         IN_NIX_SHELL = "impure";
         STARSHIP_CONFIG = starshipConfig;
