@@ -23,7 +23,7 @@ pure NixOS modules; user files under `$HOME` are managed declaratively by
   nixpkgs is pinned to `nixos-unstable`. Also carries `nixConfig` (mirrors +
   trusted key, honored via `accept-flake-config`).
 - `modules/base.nix` — imports shared by every host profile (users, hjem,
-  nix, i18n, env, nh, git, neovim, pi, zsh) + unfree whitelist
+  nix, i18n, env, nh, git, neovim, pi, fish) + unfree whitelist
   (qq/helium/nvidia*). No desktop/browser packages — helium lives in
   `modules/desktop/default.nix` so the headless WSL host doesn't pull it.
 - Root-level infra files (auto-imported by import-tree): `flake-parts.nix`
@@ -41,7 +41,7 @@ pure NixOS modules; user files under `$HOME` are managed declaratively by
   qt, fcitx5, display (greetd), portal, xwayland, audio, pcmanfm.
 - `modules/hjem.nix` — wires up hjem (`inputs.hjem`), `hjem.users.<user>`
   enabled for `my.name`. Other modules declare their user files under
-  `hjem.users.<user>.files` (plain files/dirs, e.g. `~/.zshrc`, nvim state
+  `hjem.users.<user>.files` (plain files/dirs, e.g. `~/.config/fish/config.fish`, nvim state
   dirs) or `xdg.config.files` (e.g. `~/.config/starship.toml`), usually with
   `clobber = true`. A `hjem-activate@.service` run as the user links/creates
   them at boot, replacing the old per-module systemd-tmpfiles rules (commit
@@ -50,7 +50,8 @@ pure NixOS modules; user files under `$HOME` are managed declaratively by
   `programs.neovim` + `vimPlugins`, init.lua in
   `modules/programs/neovim/init.lua` read via `builtins.readFile`; LSP is
   wired with nvim-lspconfig ≥0.11 style `vim.lsp.config`/`vim.lsp.enable` —
-  no `require('lspconfig')`), zsh (+ starship themes from
+  no `require('lspconfig')`), fish (login shell via programs.fish; config.fish in
+  `modules/programs/fish.nix` + starship themes from
   `modules/_starship-theme.nix`), git, pi, nh.
 - `modules/overlays/` — nixpkgs overlay forcing QQ to Wayland (desktop only).
 - `modules/hardware/` — CPU/GPU specifics: `cpu-amd.nix`, `nvidia.nix`,
@@ -74,7 +75,7 @@ pure NixOS modules; user files under `$HOME` are managed declaratively by
   (flake-parts freeform attrs would otherwise not merge).
 - `modules/hosts/wsl/configuration.nix` — headless NixOS-WSL guest.
 - `modules/devshell.nix` — `nix develop` shell (lix, nh, nixfmt, statix,
-  git, zsh + lockfile-pinned disko CLI; STARSHIP_CONFIG = devshell theme).
+  git, fish + lockfile-pinned disko CLI; STARSHIP_CONFIG = devshell theme).
 
 ## Conventions
 
@@ -93,8 +94,9 @@ pure NixOS modules; user files under `$HOME` are managed declaratively by
   Edit the module, not `~` — hjem re-links on boot and overwrites manual
   edits. Runtime credentials (`~/.pi/agent/auth.json`, `~/.ssh/...`) are NOT
   hjem-managed and persist freely (impermanence keeps the dirs).
-- `~/.ssh` and `~/.gnupg` are persisted with mode `0700`; `.zsh_history` is
-  persisted as a user file.
+- `~/.ssh` and `~/.gnupg` are persisted with mode `0700`; fish history
+  (`~/.local/share/fish/fish_history`) is persisted via `~/.local/share`
+  (the old `.zsh_history` entry is gone — no zsh anymore).
 - Chinese mirrors (USTC/SJTU) are configured globally; don't add more.
 
 ## Adding a module

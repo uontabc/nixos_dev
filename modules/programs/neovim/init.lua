@@ -247,7 +247,6 @@ require("conform").setup({
     lua = { "stylua" },
     sh = { "shfmt" },
     bash = { "shfmt" },
-    zsh = { "shfmt" },
     python = { "ruff_format" },
     json = { "jq" },
   },
@@ -261,7 +260,6 @@ require("lint").linters_by_ft = {
   nix = { "statix" },
   sh = { "shellcheck" },
   bash = { "shellcheck" },
-  zsh = { "shellcheck" },
   python = { "ruff" },
 }
 vim.api.nvim_create_autocmd({ "BufWritePost" }, {

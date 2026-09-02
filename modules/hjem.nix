@@ -3,7 +3,7 @@
   # Hjem — declarative $HOME file management (https://hjem.feel-co.org).
   #
   # Replaces the ad-hoc systemd-tmpfiles `d`/`L+` rules that used to scatter
-  # user files (zshrc, starship, pi settings, app configs, state dirs) across
+  # user files (config.fish, starship, pi settings, app configs, state dirs)
   # the modules. Each module now declares its user files under
   # `hjem.users.<user>` (files = ~, xdg.config.files = ~/.config, ...) and
   # hjem's linker (smfh, run as the user via hjem-activate@.service) creates

@@ -12,7 +12,7 @@
           pkgs.nixfmt
           pkgs.statix
           pkgs.git
-          pkgs.zsh
+          pkgs.fish
           # Lockfile-pinned disko CLI: `disko --flake .#uontabc --mode format,mount`
           # (avoids `nix run github:...` which fails with Connection error in CN).
           inputs'.disko.packages.disko
@@ -21,8 +21,8 @@
         STARSHIP_CONFIG = starshipConfig;
         shellHook = ''
           if [ -n "$PS1" ]; then
-            export SHELL=${pkgs.zsh}/bin/zsh
-            exec ${pkgs.zsh}/bin/zsh
+            export SHELL=${pkgs.fish}/bin/fish
+            exec ${pkgs.fish}/bin/fish
           fi
         '';
       };

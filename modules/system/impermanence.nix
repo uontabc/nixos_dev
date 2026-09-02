@@ -141,7 +141,8 @@
                 }
               ];
 
-              files = [ ".zsh_history" ];
+              # fish history lives under ~/.local/share/fish/fish_history —
+              # covered by the persisted ".local/share" directory above.
             };
           };
         }

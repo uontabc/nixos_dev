@@ -10,7 +10,7 @@
       git
       neovim
       pi
-      zsh
+      fish
     ];
 
     hardware.enableRedistributableFirmware = true;

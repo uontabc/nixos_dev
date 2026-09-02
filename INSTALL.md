@@ -24,10 +24,10 @@ nixos_dev/
 ├── flake.lock             # 依赖锁定文件
 └── modules/
     ├── base.nix           # 所有 host 共用的基础模块入口（imports: users hjem nix i18n env
-    │                      #   nh git neovim pi zsh；unfree 白名单 qq/helium/nvidia*）
+    │                      #   nh git neovim pi fish；unfree 白名单 qq/helium/nvidia*）
     ├── flake-parts.nix    # flake-parts 接入；构造 pkgs（allowUnfreePredicate，与 base.nix 同步）
     ├── hjem.nix           # hjem：$HOME 声明式文件管理（各模块往 hjem.users.<user> 里声明文件）
-    ├── devshell.nix       # `nix develop`：lix/nh/nixfmt/statix/git/zsh + 锁定的 disko CLI
+    ├── devshell.nix       # `nix develop`：lix/nh/nixfmt/statix/git/fish + 锁定的 disko CLI
     ├── templates.nix      # flake 模板：重导出 dev-templates
     ├── _starship-theme.nix # starship 主题（_ 前缀文件被 import-tree 跳过，不作模块导入）
     │                      #   `host`（登录 shell）/ `devshell`（no-empty-icons 预设）
@@ -37,7 +37,7 @@ nixos_dev/
     │                      #   wsl、env、i18n、fonts、graphics、input、zram、audio、bluetooth、printing
     ├── desktop/           # 桌面（仅 uontabc）：default(profile)、niri、noctalia、kitty、qt、fcitx5、
     │                      #   display(greetd)、portal、xwayland、audio、pcmanfm
-    ├── programs/          # 各软件配置：neovim（programs.neovim + init.lua，非 nixvim）、zsh、git、pi、nh
+    ├── programs/          # 各软件配置：neovim（programs.neovim + init.lua，非 nixvim）、fish、git、pi、nh
     ├── hardware/          # CPU/GPU：cpu-amd、nvidia、default（打包 cpu+gpu+graphics+bluetooth+input+zram）
     ├── overlays/          # nixpkgs overlay（QQ 的 Wayland 启动参数）
     └── hosts/
@@ -50,8 +50,8 @@ nixos_dev/
 ### 关键约定
 
 - **仓库路径固定为 `~/nixos_dev`**：`nh.nix` 中 `programs.nh.flake` 硬编码了 `/home/<用户>/nixos_dev`，克隆时请保持这个路径，否则 `nh` 会失效。
-- **用户名默认 `onyx`**：定义在 `modules/system/users.nix` 的 `my.name` 选项。其它模块一律用 `config.my.name` 动态生成路径（hjem 用户、impermanence 持久化、zsh、niri 等），改一处即可全局生效，**不要硬编码 `/home/onyx`**。
-- **`$HOME` 由 hjem 声明式管理**（`modules/hjem.nix`）：`~/.zshrc`、`~/.config/starship.toml`、`~/.pi/agent/settings.json`、`~/.local/{share,state}/nvim` 等文件/目录都声明在各模块的 `hjem.users.<user>` 里，开机由 `hjem-activate@.service` **以用户身份**创建/链接（`clobber = true` 表示覆盖旧文件）。想改这些文件 → 改声明所在模块后 `nh os switch`，不要只改 `~` 下的文件（会被覆盖）。
+- **用户名默认 `onyx`**：定义在 `modules/system/users.nix` 的 `my.name` 选项。其它模块一律用 `config.my.name` 动态生成路径（hjem 用户、impermanence 持久化、fish、niri 等），改一处即可全局生效，**不要硬编码 `/home/onyx`**。
+- **`$HOME` 由 hjem 声明式管理**（`modules/hjem.nix`）：`~/.config/fish/config.fish`、`~/.config/starship.toml`、`~/.pi/agent/settings.json`、`~/.local/{share,state}/nvim` 等文件/目录都声明在各模块的 `hjem.users.<user>` 里，开机由 `hjem-activate@.service` **以用户身份**创建/链接（`clobber = true` 表示覆盖旧文件）。想改这些文件 → 改声明所在模块后 `nh os switch`，不要只改 `~` 下的文件（会被覆盖）。
 - **密码为声明式 `hashedPassword`**：写在 `modules/system/users.nix`。仓库里的 hash 对应的默认密码是 `uontabc`，**正式使用前必须更换**。运行 `mkpasswd -m sha-512` 生成新 hash，更新后 `nh os switch`，无需在系统里跑 `passwd`。
 - **国内镜像源**已内置：`mirrors.ustc.edu.cn` / `mirror.sjtu.edu.cn` 优先，`cache.nixos.org` 兜底；flake 的 `nixConfig` 里声明了对应的 trusted key 且系统侧开了 `accept-flake-config`，克隆后第一次用就不会弹 "untrusted flake config" 警告。
 
@@ -218,7 +218,7 @@ findmnt / /nix /persist
 
 > 想改密码：在任意机器上运行 `mkpasswd -m sha-512` 生成新 hash，替换 `modules/system/users.nix` 中的 `hashedPassword` 后 `nh os switch`，用新密码登录验证即可。
 
-持久化清单见 `modules/system/impermanence.nix`：`/var/lib/nixos`、`/var/lib/systemd`、`/var/lib/NetworkManager`、`/var/lib/bluetooth`、`/var/lib/hjem`、`/var/log`、`/etc/ssh/ssh_host_*_key`、`/etc/machine-id`、`/etc/NetworkManager/system-connections`、`/etc/daed`，以及用户目录下的 `Documents`、`Downloads`、`Pictures`、`Music`、`Videos`、`Projects`、`dev`、`nixos_dev`（flake 仓库本身）、`.ssh`（0700）、`.gnupg`（0700）、`.local/share`、`.local/state`、`.pi`（0700）、`.zsh_history`。
+持久化清单见 `modules/system/impermanence.nix`：`/var/lib/nixos`、`/var/lib/systemd`、`/var/lib/NetworkManager`、`/var/lib/bluetooth`、`/var/lib/hjem`、`/var/log`、`/etc/ssh/ssh_host_*_key`、`/etc/machine-id`、`/etc/NetworkManager/system-connections`、`/etc/daed`，以及用户目录下的 `Documents`、`Downloads`、`Pictures`、`Music`、`Videos`、`Projects`、`dev`、`nixos_dev`（flake 仓库本身）、`.ssh`（0700）、`.gnupg`（0700）、`.local/share`、`.local/state`、`.pi`（0700）等；fish 历史在 `~/.local/share/fish/`，随 `.local/share` 一起持久化。
 
 ---
 
@@ -294,7 +294,7 @@ sudo nixos-rebuild switch --flake /home/onyx/nixos_dev#uontabc --rollback
 - 桌面快捷键参考：`niri` 窗口键为 **Mod**（默认 `Mod4`/Super）。`Mod+Return` 开终端，`Mod+Space` 打开 noctalia 启动器，`Mod+S` 控制中心，音量/亮度用多媒体键（见 `modules/desktop/niri.nix` 完整键位表）。
 - 更新 flake 依赖：`nix flake update`（各输入均 `follows = "nixpkgs"`，没有需要单独维护锁定分支的输入）。
 - 包管理：所有系统包都走声明式配置（`my.packages` / `environment.systemPackages`），不推荐 `nix profile` 混用。
-- **改用户级文件**：`~/.zshrc`、`~/.config/starship.toml`、`~/.pi/agent/settings.json`、`~/.local/state/nvim` 等都由 hjem 管理，去对应模块改 `hjem.users.<user>` 声明后 `nh os switch`，不要直接编辑（会被覆盖，见第 1 节）。
+- **改用户级文件**：`~/.config/fish/config.fish`、`~/.config/starship.toml`、`~/.pi/agent/settings.json`、`~/.local/state/nvim` 等都由 hjem 管理，去对应模块改 `hjem.users.<user>` 声明后 `nh os switch`，不要直接编辑（会被覆盖，见第 1 节）。
 
 ---
 
@@ -333,19 +333,19 @@ nix develop                       # 已装 nix-direnv 的话：direnv allow
 
 ## 8. 仓库开发环境（nix develop）
 
-本仓库自带一个 `devShell`（`modules/devshell.nix`），进入后自动切换到 zsh，并带上改配置常用的工具：
+本仓库自带一个 `devShell`（`modules/devshell.nix`），进入后自动切换到 fish，并带上改配置常用的工具：
 
 ```bash
 cd ~/nixos_dev
 nix develop          # 进入开发环境
 
-# 环境内可直接使用：lix、nh、nixfmt、statix、git、zsh，
+# 环境内可直接使用：lix、nh、nixfmt、statix、git、fish，
 # 以及 flake.lock 锁定的 disko CLI（`disko --flake .#uontabc --mode format,mount`）
 ```
 
 > 提示符用 `modules/_starship-theme.nix` 里的 `devshell` 主题（官方 no-empty-icons 预设，
 > 工具图标仅在检测到对应工具时显示）；登录 shell 用的是同一文件的 `host` 主题
-> （目录 + git + nix-shell 的极简风格，见 `modules/programs/zsh.nix`）。
+> （目录 + git + nix-shell 的极简风格，见 `modules/programs/fish.nix`）。
 
 ---
 

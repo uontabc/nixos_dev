@@ -13,7 +13,7 @@ let
 
   # Every host pulls a profile: a list of module names
   # (flake.modules.nixos.<name>) that kind of machine needs. `base` is
-  # always included (users/nix/i18n/env/nh/git/neovim/pi/zsh).
+  # always included (users/nix/i18n/env/nh/git/neovim/pi/fish).
   hostProfiles = {
     # Bare-metal desktop: AMD + NVIDIA, niri Wayland, btrfs + impermanence,
     # GRUB. Imports mirror the old uontabc host definition.

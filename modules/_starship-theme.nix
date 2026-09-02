@@ -1,7 +1,7 @@
 { pkgs }:
 # Starship themes.
 #
-# `host` (symlinked to ~/.config/starship.toml by modules/programs/zsh.nix)
+# `host` (symlinked to ~/.config/starship.toml by modules/programs/fish.nix)
 # is the minimal theme from the old codeberg nix-config repo
 # (modules/programs/starship.nix): directory + git + nix-shell only.
 #
