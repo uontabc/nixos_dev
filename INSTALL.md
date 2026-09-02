@@ -35,7 +35,7 @@ nixos_dev/
     ├── overlays/          # nixpkgs overlay（qq 的 Wayland 启动参数）
     └── hosts/
         ├── common.nix     # host 工厂（codeberg 风格）：hostProfiles + mkHostConfiguration
-        ├── uontabc/       # 裸机桌面主机：configuration.nix + disko.nix + _disko-devices.nix
+        ├── uontabc/       # 裸机桌面主机：configuration.nix（disko 布局用 flake.lib.mkPartitionConfig 内联）
         └── wsl/           # WSL 主机：configuration.nix
 ```
 
@@ -94,7 +94,7 @@ git clone https://github.com/uontabc/nixos_dev.git /home/onyx/nixos_dev
 
 ### 3.4 磁盘分区（本机已分好，只需确认盘符）
 
-本配置的 disko 方案（`modules/hosts/uontabc/_disko-devices.nix`）按 **盘符** 识别分区，`destroy = true` 只作用于 NixOS 自己的两个分区，Windows 分区完全不在 disko 定义里、不会被碰。本机布局（`lsblk` 确认，勿照抄旧教程的 parted 命令）：
+本配置的 disko 方案（`modules/system/disko.nix` 的 `mkPartitionConfig`）按 **盘符** 识别分区，`destroy = true` 只作用于 NixOS 自己的两个分区，Windows 分区完全不在 disko 定义里、不会被碰。本机布局（`lsblk` 确认，勿照抄旧教程的 parted 命令）：
 
 | 分区 | 盘符 | 文件系统 | 挂载点 | 说明 |
 |------|-----------|----------|--------|------|
@@ -103,8 +103,9 @@ git clone https://github.com/uontabc/nixos_dev.git /home/onyx/nixos_dev
 | 4 | `/dev/nvme0n1p4` | btrfs | `/`（含子卷） | NixOS 根分区（disko 会 wipe 重建） |
 
 > 如果实际盘符不是 `/dev/nvme0n1p3/p4`，需要同步修改两处：
-> `modules/hosts/uontabc/_disko-devices.nix`（devices）和 `modules/hosts/uontabc/configuration.nix`
-> （`impermanence-rollback` initrd 服务里的设备引用）。
+> `modules/system/disko.nix` 里的 `mkPartitionConfig` 调用（diskoConfigurations 和
+> `modules/hosts/uontabc/configuration.nix` 的 `extraImports` 用的是同一份布局）以及
+> configuration.nix 里 `impermanence-rollback` initrd 服务引用的设备。
 
 ```bash
 sudo -i
@@ -129,13 +130,14 @@ disko 会按配置创建文件系统、btrfs 子卷并挂载到 `/mnt`：
 ```bash
 # 注意：必须带 --mode format,mount！disko 默认 mode 是 mount（只挂载），
 # 首次安装时分区是空的，只挂载会报错（没有文件系统可挂载）。
-nix run github:nix-community/disko -- \
+nix run .#disko -- \
   --flake /home/onyx/nixos_dev#uontabc \
   --mode format,mount
 ```
 
 > `uontabc` 同时暴露为 `diskoConfigurations.uontabc` 输出，disko CLI 会优先
-> 使用它；若 GitHub 最新版 disko 与 flake.lock 锁定版本不一致导致
+> 使用它。`nix run .#disko` 用的是 **flake.lock 锁定的 disko 版本**（不会触发
+> GitHub 抓取，国内网络下不会报 Connection error）；若仍遇到
 > `disko-compat-error`，改用本 flake 锁定的 disko 生成的脚本：
 > `nix run .#nixosConfigurations.uontabc.config.system.build.formatMount`
 >
@@ -145,7 +147,7 @@ nix run github:nix-community/disko -- \
 > **完全重装系统**（包括 `/persist` 在内的分区数据都会丢失）用完整流程，
 > 会先 wipe 掉 `/dev/nvme0n1p3` 和 `/dev/nvme0n1p4` 再重建（Windows 分区不受影响）。需要保留
 > `/persist` 时，先把它备份到其他磁盘，不要直接使用此流程：
-> `nix run github:nix-community/disko -- --flake /home/onyx/nixos_dev#uontabc --mode destroy,format,mount`
+> `nix run .#disko -- --flake /home/onyx/nixos_dev#uontabc --mode destroy,format,mount`
 
 跑完后直接跳到 3.6。
 
@@ -164,7 +166,7 @@ btrfs subvolume create /mnt/nix
 btrfs subvolume create /mnt/persist
 umount /mnt
 
-# 挂载子卷（挂载参数与 _disko-devices.nix 保持一致）
+# 挂载子卷（挂载参数与 modules/system/disko.nix 保持一致）
 mount -o subvol=root,compress=zstd,noatime,ssd /dev/nvme0n1p4 /mnt
 mkdir -p /mnt/{boot,nix,persist}
 mount /dev/nvme0n1p3 /mnt/boot
@@ -341,7 +343,7 @@ sudo btrfs subvolume snapshot /mnt/@root-blank /mnt/root   # 需先卸载/换挂
 
 ### 9.2 `nixos-install` 报 fileSystems 相关错误
 
-多半是 3.5 的挂载没做完整（`root`/`nix`/`persist` 三个子卷 + `/mnt/boot`），用 `findmnt` 检查 `/mnt` 下挂载点；或盘符与配置不符（`modules/hosts/uontabc/_disko-devices.nix` 与 `modules/hosts/uontabc/configuration.nix` 里写死的 `/dev/nvme0n1p3`/`/dev/nvme0n1p4`）。
+多半是 3.5 的挂载没做完整（`root`/`nix`/`persist` 三个子卷 + `/mnt/boot`），用 `findmnt` 检查 `/mnt` 下挂载点；或盘符与配置不符（`modules/system/disko.nix` 与 `modules/hosts/uontabc/configuration.nix` 里写死的 `/dev/nvme0n1p3`/`/dev/nvme0n1p4`）。
 
 ### 9.3 SSH 无法登录
 
@@ -364,5 +366,5 @@ trusted-public-keys = [ "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGsp
 
 ### 9.6 添加/修改 host
 
-- 新主机：在 `modules/hosts/common.nix` 的 `hostProfiles` 里加一个 profile（或复用现有的），然后新建 `modules/hosts/<名字>/configuration.nix`，仿照 uontabc 调 `mkHostConfiguration { hostName = "<名字>"; nixosModules = <profile>.nixosModules; extraImports = [...]; extraConfig = ...; }`，即可自动生成 `nixosConfigurations.<名字>`。主机专属的 disko 分区方案放同目录 `_disko-devices.nix`（下划线前缀避免被 import-tree 导入），通过 `extraImports` 传入。
+- 新主机：在 `modules/hosts/common.nix` 的 `hostProfiles` 里加一个 profile（或复用现有的），然后新建 `modules/hosts/<名字>/configuration.nix`，仿照 uontabc 调 `mkHostConfiguration { hostName = "<名字>"; nixosModules = <profile>.nixosModules; extraImports = [...]; extraConfig = ...; }`，即可自动生成 `nixosConfigurations.<名字>`。主机专属的 disko 布局用 `config.flake.lib.mkPartitionConfig { esp = ...; root = ...; }`（整盘用 `mkDiskConfig`）在 configuration.nix 里内联生成，同一份布局在 `modules/system/disko.nix` 里也喂给 `diskoConfigurations`。
 - 改用户：改 `modules/system/users.nix` 的 `my.name`，`impermanence.nix` 的用户目录、`nh.nix` 的 flake 路径、`wsl.nix` 的 `defaultUser` 都会跟随。

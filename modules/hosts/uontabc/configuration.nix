@@ -11,9 +11,15 @@ in
     hostName = "uontabc";
     inherit (desktop) nixosModules;
 
-    # disko devices for this machine (modules/hosts/uontabc/disko.nix points
-    # flake.modules.nixos.uontabc at ./_disko-devices.nix).
-    extraImports = [ config.flake.modules.nixos.uontabc ];
+    # NixOS-only partitions on the dual-boot disk (Windows keeps p1/p2):
+    # ESP on p3, btrfs on p4 — built by the codeberg-style factory in
+    # modules/system/disko.nix (same call as diskoConfigurations.uontabc).
+    extraImports = [
+      (config.flake.lib.mkPartitionConfig {
+        esp = "/dev/nvme0n1p3";
+        root = "/dev/nvme0n1p4";
+      })
+    ];
 
     extraConfig =
       { pkgs, ... }:

@@ -43,17 +43,14 @@ pure NixOS modules.
   machine you are on. Passes the profile + machine-specific extras
   (initrd kernel modules, @root-blank rollback service) to
   `mkHostConfiguration`.
-- `modules/hosts/uontabc/_disko-devices.nix` — NixOS-only partitions on the
-  dual-boot disk by **device path** (`/dev/nvme0n1p3` ESP, `/dev/nvme0n1p4`
-  btrfs; Windows owns p1/p2, untouched). It calls `mkPartitionConfig` from
-  `modules/system/_disko-lib.nix` (codeberg-style factory, also re-exported
-  as `flake.lib`). Shared by the NixOS host
-  (imported via `extraImports` in configuration.nix, exposed as
-  `flake.modules.nixos.uontabc` by `modules/hosts/uontabc/disko.nix`) and the
-  `diskoConfigurations.uontabc` output (modules/system/disko.nix). It is
-  underscore-prefixed so import-tree does not import it as a flake-parts
-  module. The rollback device is hardcoded in configuration.nix — change
-  both together.
+- `modules/system/disko.nix` — the single disko file (codeberg style):
+  `flake.lib.mkDiskConfig` (whole disk) + `flake.lib.mkPartitionConfig`
+  (dual-boot by device path), the NixOS module wrapper, and
+  `diskoConfigurations.uontabc`. uontabc builds its layout inline in
+  configuration.nix via `extraImports = [ (config.flake.lib.mkPartitionConfig
+  { esp = "/dev/nvme0n1p3"; root = "/dev/nvme0n1p4"; }) ]` (Windows keeps
+  p1/p2 untouched). `flake.lib` is declared mergeable in hosts/common.nix
+  (flake-parts freeform attrs would otherwise not merge).
 - `modules/hosts/wsl/configuration.nix` — headless NixOS-WSL guest.
 - `modules/devshell.nix` — `nix develop` shell (lix, nh, nixfmt, statix, zsh).
 
@@ -112,9 +109,12 @@ switch, e.g. `nh os build`.
   subvolume and snapshots `@root-blank` over it every boot. `btrfs` is
   symlinked into the initrd `/bin` via `boot.initrd.systemd.extraBin` —
   `storePaths` alone does NOT put it on PATH. The btrfs device
-  (`/dev/nvme0n1p4`) is hardcoded there and must match `_disko-devices.nix`.
+  (`/dev/nvme0n1p4`) is hardcoded there and must match the
+  `mkPartitionConfig` call in `modules/system/disko.nix`.
 - `diskoConfigurations.uontabc` is exposed in `modules/system/disko.nix` so
-  the disko CLI works (`nix run github:nix-community/disko -- --flake
-  .#uontabc --mode format,mount`); when it reports `disko-compat-error`, use
+  the disko CLI works. Use the lockfile-pinned CLI (`nix run .#disko --
+  --flake .#uontabc --mode format,mount`, or `disko` in the devshell) — NOT
+  `nix run github:nix-community/disko`, which fetches GitHub and fails with
+  Connection error in CN; when it reports `disko-compat-error`, use
   `nix run .#nixosConfigurations.uontabc.config.system.build.formatMount`
   instead.

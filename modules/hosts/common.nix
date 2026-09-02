@@ -1,11 +1,15 @@
 {
   inputs,
   config,
+  lib,
   ...
 }:
 let
+  inherit (lib) mkOption;
+  inherit (lib.lists) singleton;
+  # flake-parts' lib is the trimmed nixpkgs-lib (no nixosSystem); the full
+  # one comes from the nixpkgs input.
   inherit (inputs.nixpkgs.lib) nixosSystem;
-  inherit (inputs.nixpkgs.lib.lists) singleton;
 
   # Every host pulls a profile: a list of module names
   # (flake.modules.nixos.<name>) that kind of machine needs. `base` is
@@ -83,22 +87,16 @@ let
     };
 in
 {
-  # Re-export the disko layout factories (codeberg nix-config style):
-  #   lib.mkPartitionConfig { esp = ...; root = ...; }  (dual-boot, uontabc)
-  #   lib.mkDiskConfig { device = ...; swapSize = ...; } (whole disk)
-  flake.lib =
-    let
-      inherit (import ../system/_disko-lib.nix { lib = inputs.nixpkgs.lib; })
-        mkDiskConfig
-        mkPartitionConfig
-        ;
-    in
-    {
-      inherit
-        hostProfiles
-        mkHostConfiguration
-        mkDiskConfig
-        mkPartitionConfig
-        ;
-    };
+  # flake-parts treats undeclared `flake.*` attrs as freeform+unique (cannot
+  # be defined twice). Declare `flake.lib` as a mergeable attrset so this
+  # module (hostProfiles/mkHostConfiguration) and modules/system/disko.nix
+  # (mkDiskConfig/mkPartitionConfig) can both contribute to it.
+  options.flake.lib = mkOption {
+    type = lib.types.lazyAttrsOf lib.types.raw;
+    default = { };
+  };
+
+  config.flake.lib = {
+    inherit hostProfiles mkHostConfiguration;
+  };
 }
