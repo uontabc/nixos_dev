@@ -290,7 +290,8 @@ sudo nixos-rebuild switch --flake /home/onyx/nixos_dev#uontabc --rollback
 
 本仓库不使用声明式 secrets 工具（如 vaultix / sops-nix）。用户级凭据按各应用的默认位置存放：
 
-- **opencode**：API key 存放在 `~/.local/share/opencode/auth.json`（格式 `{"deepseek": {"api_key": "..."}}`）。用 `opencode auth login` 或手动写入该文件即可；`~/.local/share` 已由 impermanence 持久化，重启不丢。
+- **pi（编码代理）**：API key 存放在 `~/.pi/agent/auth.json`（格式 `{"deepseek": {"type": "api_key", "key": "sk-..."}}`）。用 `pi` 的 `/login` 或手动写入该文件即可（`DEEPSEEK_API_KEY` 环境变量也可以）；`~/.pi` 已由 impermanence 持久化，重启不丢。
+  - 如果对话时报 `Error: Connection error.`（pi 连不上 api.deepseek.com），在 `modules/system/users.nix` 里设置 `my.piHttpProxy = "http://127.0.0.1:7890"`（换成你本地代理的端口），pi 会通过该代理走所有请求；`pi.dev` 的版本检查已被 `PI_SKIP_VERSION_CHECK=1` 关闭（国内连不上）。
 - **其他应用**：按各自默认路径（如 `~/.ssh/`、`~/.gnupg/`），这些目录同样在持久化清单里。
 
 > 手动写入的凭据不会被任何声明式流程覆盖；改 key 直接在对应文件里改即可。
