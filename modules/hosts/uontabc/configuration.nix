@@ -38,8 +38,8 @@ in
               before = [ "sysroot.mount" ];
               # Wait for the btrfs device to appear — the disk may not be
               # probed yet at initrd startup.
-              after = [ "dev-nvme0n1p6.device" ];
-              requires = [ "dev-nvme0n1p6.device" ];
+              after = [ "dev-nvme0n1p4.device" ];
+              requires = [ "dev-nvme0n1p4.device" ];
               unitConfig.DefaultDependencies = "no";
               serviceConfig = {
                 Type = "oneshot";
@@ -47,7 +47,7 @@ in
               };
               script = ''
                 mkdir -p /btrfs-tl
-                mount -t btrfs -o subvolid=5 /dev/nvme0n1p6 /btrfs-tl
+                mount -t btrfs -o subvolid=5 /dev/nvme0n1p4 /btrfs-tl
 
                 if [ -d /btrfs-tl/@root-blank ]; then
                   echo "[impermanence] rolling back root subvolume from @root-blank"
@@ -81,10 +81,6 @@ in
         };
 
         swapDevices = [ ];
-
-        # disko does not set neededForBoot on generated mounts; stage-1
-        # needs /persist (impermanence bind-mounts from it in the initrd).
-        fileSystems."/persist".neededForBoot = true;
       };
   };
 }

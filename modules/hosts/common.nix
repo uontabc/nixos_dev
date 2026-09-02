@@ -83,7 +83,22 @@ let
     };
 in
 {
-  flake.lib = {
-    inherit hostProfiles mkHostConfiguration;
-  };
+  # Re-export the disko layout factories (codeberg nix-config style):
+  #   lib.mkPartitionConfig { esp = ...; root = ...; }  (dual-boot, uontabc)
+  #   lib.mkDiskConfig { device = ...; swapSize = ...; } (whole disk)
+  flake.lib =
+    let
+      inherit (import ../system/_disko-lib.nix { lib = inputs.nixpkgs.lib; })
+        mkDiskConfig
+        mkPartitionConfig
+        ;
+    in
+    {
+      inherit
+        hostProfiles
+        mkHostConfiguration
+        mkDiskConfig
+        mkPartitionConfig
+        ;
+    };
 }

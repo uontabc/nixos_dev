@@ -43,8 +43,11 @@ pure NixOS modules.
   machine you are on. Passes the profile + machine-specific extras
   (initrd kernel modules, @root-blank rollback service) to
   `mkHostConfiguration`.
-- `modules/hosts/uontabc/_disko-devices.nix` — partition layout by **device path**
-  (`/dev/nvme0n1p1` ESP, `/dev/nvme0n1p6` btrfs), shared by the NixOS host
+- `modules/hosts/uontabc/_disko-devices.nix` — NixOS-only partitions on the
+  dual-boot disk by **device path** (`/dev/nvme0n1p3` ESP, `/dev/nvme0n1p4`
+  btrfs; Windows owns p1/p2, untouched). It calls `mkPartitionConfig` from
+  `modules/system/_disko-lib.nix` (codeberg-style factory, also re-exported
+  as `flake.lib`). Shared by the NixOS host
   (imported via `extraImports` in configuration.nix, exposed as
   `flake.modules.nixos.uontabc` by `modules/hosts/uontabc/disko.nix`) and the
   `diskoConfigurations.uontabc` output (modules/system/disko.nix). It is
@@ -109,7 +112,7 @@ switch, e.g. `nh os build`.
   subvolume and snapshots `@root-blank` over it every boot. `btrfs` is
   symlinked into the initrd `/bin` via `boot.initrd.systemd.extraBin` —
   `storePaths` alone does NOT put it on PATH. The btrfs device
-  (`/dev/nvme0n1p6`) is hardcoded there and must match `_disko-devices.nix`.
+  (`/dev/nvme0n1p4`) is hardcoded there and must match `_disko-devices.nix`.
 - `diskoConfigurations.uontabc` is exposed in `modules/system/disko.nix` so
   the disko CLI works (`nix run github:nix-community/disko -- --flake
   .#uontabc --mode format,mount`); when it reports `disko-compat-error`, use
