@@ -12,7 +12,7 @@
       fcitx5
       fonts
       printing
-      thunar
+      pcmanfm
     ];
 
     my.packages = with pkgs; [

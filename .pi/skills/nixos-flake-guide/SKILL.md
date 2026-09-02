@@ -38,7 +38,7 @@ pure NixOS modules; user files under `$HOME` are managed declaratively by
   option-driven via `impermanence.rollbackDevice`), users, wsl, audio,
   bluetooth, graphics, input, zram, fonts, i18n, env, printing.
 - `modules/desktop/` — GUI: `default.nix` (profile), niri, noctalia, kitty,
-  qt, fcitx5, display (greetd), portal, xwayland, audio, thunar.
+  qt, fcitx5, display (greetd), portal, xwayland, audio, pcmanfm.
 - `modules/hjem.nix` — wires up hjem (`inputs.hjem`), `hjem.users.<user>`
   enabled for `my.name`. Other modules declare their user files under
   `hjem.users.<user>.files` (plain files/dirs, e.g. `~/.zshrc`, nvim state

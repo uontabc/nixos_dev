@@ -36,7 +36,7 @@ nixos_dev/
     │                      #   initrd 回滚，见 impermanence.rollbackDevice）、disko、boot、networking(+daed)、
     │                      #   wsl、env、i18n、fonts、graphics、input、zram、audio、bluetooth、printing
     ├── desktop/           # 桌面（仅 uontabc）：default(profile)、niri、noctalia、kitty、qt、fcitx5、
-    │                      #   display(greetd)、portal、xwayland、audio、thunar
+    │                      #   display(greetd)、portal、xwayland、audio、pcmanfm
     ├── programs/          # 各软件配置：neovim（programs.neovim + init.lua，非 nixvim）、zsh、git、pi、nh
     ├── hardware/          # CPU/GPU：cpu-amd、nvidia、default（打包 cpu+gpu+graphics+bluetooth+input+zram）
     ├── overlays/          # nixpkgs overlay（QQ 的 Wayland 启动参数）
