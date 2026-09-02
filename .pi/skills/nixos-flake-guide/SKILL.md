@@ -32,7 +32,7 @@ pure NixOS modules.
 - `modules/desktop/` — GUI: `default.nix` (profile), niri, noctalia, kitty,
   qt, fcitx5, display (greetd), portal, xwayland, audio, thunar.
 - `modules/programs/` — per-app config: neovim (nixvim), zsh (+ starship
-  theme in `_starship-theme.nix`), git, pi, nh.
+  theme in `starship-theme.nix` at the repo root), git, pi, nh.
 - `modules/hardware/` — CPU/GPU specifics: `cpu-amd.nix`, `nvidia.nix`,
   `default.nix` (bundles both + graphics/bluetooth/input/zram).
 - `modules/hosts/common.nix` — host factory (codeberg style):
